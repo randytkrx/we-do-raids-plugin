@@ -22,21 +22,49 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package net.runelite.client.plugins.wedoraids;
+package com.wedoraids;
 
-import java.awt.Color;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import java.time.Instant;
+import javax.annotation.Nullable;
+import lombok.Value;
 
-@Getter
-@RequiredArgsConstructor
-enum BridgeStatus
+/**
+ * A single recruiting call parsed out of chat.
+ */
+@Value
+class RecruitEntry
 {
-	OFF("Feed off", WdrTheme.TEXT_DIM),
-	CONNECTING("Connecting…", WdrTheme.TEXT_DIM),
-	ONLINE("Live", WdrTheme.GREEN),
-	OFFLINE("Offline", WdrTheme.ERROR);
-
-	private final String label;
-	private final Color color;
+	String sender;
+	/** Where the message came from: FC, CC, Guest CC, Public, or a Discord channel label. */
+	String source;
+	RaidType raidType;
+	/** WDR experience tier (KC-gated), e.g. Learner/Standard/Advanced/Efficient/FFA/HM/HM Exp. */
+	@Nullable
+	String tier;
+	/** Mode qualifier such as HM, CM, Entry, a ToA invocation ("350 invo"), "kit", or "remnant". */
+	@Nullable
+	String mode;
+	/** Open spots like "+2", if the message contained one. */
+	@Nullable
+	String spots;
+	/** Roles wanted/offered, e.g. "mdps/rdps" or "nfrz", if any. */
+	@Nullable
+	String roles;
+	/** Party fill like "3/5", or a "duo"/"trio" qualifier. */
+	@Nullable
+	String partySize;
+	/** World number, or 0 if none was mentioned. */
+	int world;
+	/** Region hint such as "eu"/"usw", if any. */
+	@Nullable
+	String region;
+	/** Party/proof host name, if any. */
+	@Nullable
+	String host;
+	/** Poster's highest raid KC for this raid (from OSRS hiscores), or 0 if unknown. */
+	int kc;
+	/** Classification: RAID (advert), LFG (looking), ROLE (offer), or JOIN (coming). */
+	String kind;
+	String message;
+	Instant timestamp;
 }
