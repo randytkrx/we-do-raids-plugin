@@ -1,6 +1,6 @@
 # We Do Raids
 
-**The official [We Do Raids](https://discord.gg/wedoraids) Discord plugin — approved by the official WDR Discord.**
+**The official [We Do Raids](https://discord.gg/wdr) Discord plugin — approved by the official WDR Discord.**
 
 Find, join and host **We Do Raids** raid recruitment for **Theatre of Blood, Chambers of Xeric and Tombs of Amascut** without leaving the game.
 
