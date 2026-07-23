@@ -44,7 +44,7 @@ final class FeedProjection
 			{
 				continue;
 			}
-			final String normalizedSender = RaidBoardOverlay.normalize(sender);
+			final String normalizedSender = PlayerNameNormalizer.normalize(sender);
 			if (normalizedSender.isEmpty())
 			{
 				continue;

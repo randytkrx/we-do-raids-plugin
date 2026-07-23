@@ -22,20 +22,6 @@ import org.junit.Test;
 public class RaidBoardOverlayTest
 {
 	@Test
-	public void normalize_stripsMarkupAndNormalizesText()
-	{
-		assertEquals("", RaidBoardOverlay.normalize(null));
-		assertEquals("alice", RaidBoardOverlay.normalize(" <col=ff0000>Alice</col> "));
-		assertEquals("alice", RaidBoardOverlay.normalize("<b><i>ALICE</i></b>"));
-		assertEquals("<>alice", RaidBoardOverlay.normalize("<>ALICE"));
-		assertEquals("<col=ff0000alice", RaidBoardOverlay.normalize("<col=ff0000ALICE"));
-		assertEquals(">alice", RaidBoardOverlay.normalize("<<>>ALICE"));
-		assertEquals("alice bob", RaidBoardOverlay.normalize("\u00a0ALICE\u00a0BOB\u00a0"));
-		assertEquals("a  b", RaidBoardOverlay.normalize(" A  B "));
-		assertEquals("alice", RaidBoardOverlay.normalize("<col=ff\n0000>ALICE</col>"));
-	}
-
-	@Test
 	public void matches_requiresHostsToBeBoundedBySpaces()
 		throws Exception
 	{
