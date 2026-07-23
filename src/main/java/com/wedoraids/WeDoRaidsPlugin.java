@@ -32,8 +32,6 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -119,6 +117,7 @@ public class WeDoRaidsPlugin extends Plugin
 
 	@Inject
 	private WorldService worldService;
+	private final WorldSnapshotCache worldSnapshotCache = new WorldSnapshotCache(this::loadWorlds);
 
 	@Inject
 	private net.runelite.client.ui.overlay.OverlayManager overlayManager;
@@ -162,11 +161,6 @@ public class WeDoRaidsPlugin extends Plugin
 	/** Pending quick-hop target, processed on the next game tick. */
 	private net.runelite.api.World quickHopTarget;
 	private int quickHopAttempts;
-	private final Object worldLifecycleLock = new Object();
-	private long worldSnapshotRevision;
-	private volatile WorldResult worldSnapshot;
-	private ExecutorService worldLoader;
-
 	@Provides
 	WeDoRaidsConfig provideConfig(ConfigManager configManager)
 	{
@@ -711,14 +705,7 @@ public class WeDoRaidsPlugin extends Plugin
 	@Subscribe
 	public void onWorldsFetch(WorldsFetch event)
 	{
-		synchronized (worldLifecycleLock)
-		{
-			if (worldLoader != null)
-			{
-				worldSnapshot = event.getWorldResult();
-				worldSnapshotRevision++;
-			}
-		}
+		worldSnapshotCache.accept(event.getWorldResult());
 	}
 
 	@Subscribe
@@ -822,7 +809,7 @@ public class WeDoRaidsPlugin extends Plugin
 	 */
 	String worldBlockReason(int worldId)
 	{
-		final WorldResult worldResult = worldSnapshot;
+		final WorldResult worldResult = worldSnapshotCache.snapshot();
 		if (worldResult == null)
 		{
 			return null;
@@ -899,7 +886,7 @@ public class WeDoRaidsPlugin extends Plugin
 		{
 			return;
 		}
-		final WorldResult worldResult = worldSnapshot;
+		final WorldResult worldResult = worldSnapshotCache.snapshot();
 		if (worldResult == null)
 		{
 			return;
@@ -940,66 +927,17 @@ public class WeDoRaidsPlugin extends Plugin
 
 	void startWorldCache()
 	{
-		final ExecutorService replacement = Executors.newSingleThreadExecutor(runnable ->
-		{
-			final Thread thread = new Thread(runnable, "we-do-raids-world-loader");
-			thread.setDaemon(true);
-			return thread;
-		});
-		final ExecutorService previous;
-		final long revision;
-		synchronized (worldLifecycleLock)
-		{
-			previous = worldLoader;
-			worldSnapshot = null;
-			revision = ++worldSnapshotRevision;
-			worldLoader = replacement;
-			replacement.execute(() -> publishLoadedWorlds(replacement, revision));
-		}
-		if (previous != null)
-		{
-			previous.shutdownNow();
-		}
+		worldSnapshotCache.start();
 	}
 
 	void stopWorldCache()
 	{
-		final ExecutorService loader;
-		synchronized (worldLifecycleLock)
-		{
-			worldSnapshotRevision++;
-			worldSnapshot = null;
-			loader = worldLoader;
-			worldLoader = null;
-		}
-		if (loader != null)
-		{
-			loader.shutdownNow();
-		}
+		worldSnapshotCache.stop();
 	}
 
 	WorldResult loadWorlds()
 	{
 		return worldService.getWorlds();
-	}
-
-	private void publishLoadedWorlds(ExecutorService loader, long revision)
-	{
-		try
-		{
-			final WorldResult loaded = loadWorlds();
-			synchronized (worldLifecycleLock)
-			{
-				if (loaded != null && worldLoader == loader && worldSnapshotRevision == revision)
-				{
-					worldSnapshot = loaded;
-				}
-			}
-		}
-		finally
-		{
-			loader.shutdown();
-		}
 	}
 
 	private void setLocalBanned(boolean banned)

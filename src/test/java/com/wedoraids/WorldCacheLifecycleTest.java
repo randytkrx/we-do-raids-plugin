@@ -64,11 +64,13 @@ public class WorldCacheLifecycleTest
 		try
 		{
 			plugin.startWorldCache();
-			ExecutorService loader = (ExecutorService) field(plugin, "worldLoader");
 
 			assertTrue(plugin.loadCompleted.await(5, TimeUnit.SECONDS));
+			Thread loader = plugin.loaderThread.get();
+			assertTrue("completed world bootstrap did not expose its loader thread", loader != null);
+			loader.join(TimeUnit.SECONDS.toMillis(5));
 			assertTrue("completed world bootstrap left its executor alive",
-				loader.awaitTermination(5, TimeUnit.SECONDS));
+			!loader.isAlive());
 			assertNull(plugin.worldBlockReason(301));
 
 			plugin.onWorldsFetch(new WorldsFetch(worlds(world(301, EnumSet.of(WorldType.PVP)))));
