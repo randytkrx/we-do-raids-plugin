@@ -114,10 +114,11 @@ class HostFormPanel extends JPanel
 	/** True while re-editing an already-posted call (Save changes -> /update, not a new post). */
 	private boolean editingLive;
 
-	/** Fields from the last successful post, reused as the base for edits. */
+	/** Fields from the last submission, reused when an acknowledgment enters live mode. */
 	private Map<String, String> lastFields;
 	/** Working copy while a post is live (includes messageId); null when not live. */
 	private Map<String, String> liveFields;
+	private final HostLiveState liveState = new HostLiveState();
 
 	// Inactivity guard: after IDLE_MS with no host action, prompt "still here?" for
 	// PROMPT_SECONDS; no response auto-closes the party.
@@ -317,6 +318,7 @@ class HostFormPanel extends JPanel
 	/** Stops the inactivity timers; called on plugin shutdown so they can't fire into a dead panel. */
 	void stopTimers()
 	{
+		liveState.stop();
 		idleTimer.stop();
 		promptTimer.stop();
 	}
@@ -560,6 +562,58 @@ class HostFormPanel extends JPanel
 
 	private void doSubmit()
 	{
+		if (!liveState.canStart())
+		{
+			return;
+		}
+		final Map<String, String> fields = collectValidatedFields();
+		if (fields == null)
+		{
+			return;
+		}
+
+		if (editingLive && liveFields != null)
+		{
+			// Saving edits to an already-posted call: push an /update, then return to live mode.
+			final Map<String, String> update = new LinkedHashMap<>(fields);
+			update.put("messageId", liveFields.get("messageId"));
+			final long operation = beginOperation();
+			setStatus("Saving…", false);
+			actions.update(update, msg ->
+			{
+				if (!isCurrentOperation(operation))
+				{
+					return;
+				}
+				completeOperation(operation);
+				setStatus(msg, !msg.startsWith("Updated"));
+				if (msg.startsWith("Updated"))
+				{
+					finishEdit(fields);
+				}
+			});
+			return;
+		}
+
+		setStatus("Posting…", false);
+		// Remember what we posted so the live edit controls can decrement from it.
+		final Map<String, String> submitted = new LinkedHashMap<>(fields);
+		this.lastFields = new LinkedHashMap<>(submitted);
+		final long operation = beginOperation();
+		// Convention: the submitter reports success with a message starting "Posted".
+		actions.submit(submitted, msg ->
+		{
+			if (!isCurrentOperation(operation))
+			{
+				return;
+			}
+			completeOperation(operation);
+			setStatus(msg, !msg.startsWith("Posted"));
+		});
+	}
+
+	private Map<String, String> collectValidatedFields()
+	{
 		final Map<String, String> fields = new LinkedHashMap<>();
 		fields.put("raid", raidCode());
 		if (tierCombo.getSelectedItem() != null)
@@ -573,14 +627,14 @@ class HostFormPanel extends JPanel
 			if (!world.matches("\\d{1,3}"))
 			{
 				setStatus("World must be a number.", true);
-				return;
+				return null;
 			}
 			// No recruiting on PvP/High Risk/BH/LMS/etc. worlds (or nonexistent ones).
 			final String blocked = worldBlockReason.apply(Integer.parseInt(world));
 			if (blocked != null)
 			{
 				setStatus("W" + world + " is " + blocked + " — pick a different world.", true);
-				return;
+				return null;
 			}
 			fields.put("world", world);
 		}
@@ -635,7 +689,7 @@ class HostFormPanel extends JPanel
 				if (!scale.matches("\\d{1,3}") || Integer.parseInt(scale) > 100)
 				{
 					setStatus("Scale must be 0-100.", true);
-					return;
+					return null;
 				}
 				fields.put("scale", scale);
 			}
@@ -670,35 +724,13 @@ class HostFormPanel extends JPanel
 		{
 			fields.put("desc", desc);
 		}
-
-		if (editingLive && liveFields != null)
-		{
-			// Saving edits to an already-posted call: push an /update, then return to live mode.
-			final Map<String, String> update = new LinkedHashMap<>(fields);
-			update.put("messageId", liveFields.get("messageId"));
-			setStatus("Saving…", false);
-			actions.update(update, msg ->
-			{
-				setStatus(msg, !msg.startsWith("Updated"));
-				if (msg.startsWith("Updated"))
-				{
-					finishEdit(fields);
-				}
-			});
-			return;
-		}
-
-		setStatus("Posting…", false);
-		// Remember what we posted so the live edit controls can decrement from it.
-		this.lastFields = new LinkedHashMap<>(fields);
-		// Convention: the submitter reports success with a message starting "Posted".
-		actions.submit(fields, msg -> setStatus(msg, !msg.startsWith("Posted")));
+		return fields;
 	}
 
 	/** Re-open the form pre-filled with the live post's fields so the host can change details. */
 	private void beginEdit()
 	{
-		if (liveFields == null)
+		if (!liveState.canStart() || liveFields == null)
 		{
 			return;
 		}
@@ -725,7 +757,7 @@ class HostFormPanel extends JPanel
 	/** Abandon an in-progress edit and return to the live controls unchanged. */
 	private void cancelEdit()
 	{
-		if (!editingLive)
+		if (!liveState.canStart() || !editingLive)
 		{
 			return;
 		}
@@ -825,7 +857,7 @@ class HostFormPanel extends JPanel
 	/** Enter live mode for a just-posted call; {@code messageId} identifies it to the bridge. */
 	void enterLivePost(String messageId)
 	{
-		if (lastFields == null)
+		if (liveState.isStopped() || lastFields == null)
 		{
 			return;
 		}
@@ -834,6 +866,7 @@ class HostFormPanel extends JPanel
 		{
 			liveFields.put("messageId", messageId);
 		}
+		liveState.enter(liveFields);
 		form.setVisible(false);
 		livePanel.setVisible(true);
 		setLiveStatus(" ", false);
@@ -848,6 +881,7 @@ class HostFormPanel extends JPanel
 	void exitLivePost()
 	{
 		liveFields = null;
+		liveState.exit();
 		idlePromptActive = false;
 		editingLive = false;
 		postButton.setText("Post to Discord");
@@ -1064,7 +1098,7 @@ class HostFormPanel extends JPanel
 	/** Idle timer fired: start the 60-second "still here?" countdown. */
 	private void showActivityPrompt()
 	{
-		if (liveFields == null)
+		if (liveState.isStopped() || liveFields == null)
 		{
 			return;
 		}
@@ -1081,6 +1115,10 @@ class HostFormPanel extends JPanel
 
 	private void tickPrompt()
 	{
+		if (liveState.isStopped())
+		{
+			return;
+		}
 		promptRemaining--;
 		if (promptRemaining <= 0)
 		{
@@ -1089,7 +1127,10 @@ class HostFormPanel extends JPanel
 			setLiveStatus("No response — closing raid…", false);
 			doClose();
 			// If the close fails the post is still up; re-arm so we prompt again later.
-			idleTimer.restart();
+			if (!liveState.isStopped())
+			{
+				idleTimer.restart();
+			}
 			return;
 		}
 		idleCountdown.setText("Auto-closing in " + promptRemaining + "s…");
@@ -1098,6 +1139,10 @@ class HostFormPanel extends JPanel
 	/** Host activity (or "I'm here"): clear any prompt and restart the idle countdown. */
 	private void resetIdle()
 	{
+		if (liveState.isStopped())
+		{
+			return;
+		}
 		promptTimer.stop();
 		final boolean wasPrompting = idlePromptActive;
 		idlePromptActive = false;
@@ -1114,6 +1159,11 @@ class HostFormPanel extends JPanel
 	/** A role showed up: drop it, decrement the open spots, and push the edit. */
 	private void fillRole(String role)
 	{
+		if (!canMutateLive())
+		{
+			return;
+		}
+		final Map<String, String> previous = confirmedSnapshot();
 		final List<String> roles = currentRoles();
 		roles.remove(role);
 		if (roles.isEmpty())
@@ -1125,26 +1175,36 @@ class HostFormPanel extends JPanel
 			liveFields.put("roles", String.join(", ", roles));
 		}
 		decrementSpotValue();
-		afterSpotChange();
+		afterSpotChange(previous);
 	}
 
 	private void decrementSpot()
 	{
+		if (!canMutateLive())
+		{
+			return;
+		}
+		final Map<String, String> previous = confirmedSnapshot();
 		decrementSpotValue();
-		afterSpotChange();
+		afterSpotChange(previous);
 	}
 
 	/** Shared tail: full party ("+0") auto-closes; otherwise push the edit and re-arm idle. */
-	private void afterSpotChange()
+	private void afterSpotChange(Map<String, String> previous)
 	{
+		if (liveFields == null)
+		{
+			return;
+		}
+		final Map<String, String> candidate = new LinkedHashMap<>(liveFields);
 		if ("+0".equals(liveFields.get("spots")))
 		{
 			setLiveStatus("Party full — closing raid…", false);
-			doClose();
+			doClose(previous, candidate);
 			return;
 		}
 		resetIdle();
-		pushUpdate();
+		pushUpdate(previous, candidate);
 		rebuildLiveControls();
 	}
 
@@ -1165,16 +1225,85 @@ class HostFormPanel extends JPanel
 		}
 	}
 
-	private void pushUpdate()
+	private boolean canMutateLive()
 	{
+		return liveState.canStart() && liveFields != null;
+	}
+
+	private Map<String, String> confirmedSnapshot()
+	{
+		return liveState.confirmedSnapshot();
+	}
+
+	private long beginOperation()
+	{
+		return liveState.begin();
+	}
+
+	private boolean isCurrentOperation(long operation)
+	{
+		return liveState.accepts(operation);
+	}
+
+	private void completeOperation(long operation)
+	{
+		liveState.complete(operation);
+	}
+
+	private void pushUpdate(Map<String, String> previous, Map<String, String> candidate)
+	{
+		final long operation = beginOperation();
 		setLiveStatus("Updating…", false);
-		actions.update(new LinkedHashMap<>(liveFields), msg -> setLiveStatus(msg, !msg.startsWith("Updated")));
+		actions.update(new LinkedHashMap<>(candidate), msg ->
+		{
+			if (!isCurrentOperation(operation))
+			{
+				return;
+			}
+			final boolean success = msg.startsWith("Updated");
+			if (success)
+			{
+				liveState.confirm(candidate);
+			}
+			else
+			{
+				liveFields = new LinkedHashMap<>(previous);
+				rebuildLiveControls();
+			}
+			completeOperation(operation);
+			setLiveStatus(msg, !success);
+		});
 	}
 
 	private void doClose()
 	{
+		if (!canMutateLive())
+		{
+			return;
+		}
+		final Map<String, String> snapshot = confirmedSnapshot();
+		doClose(snapshot, snapshot);
+	}
+
+	private void doClose(Map<String, String> previous, Map<String, String> candidate)
+	{
+		final long operation = beginOperation();
 		setLiveStatus("Closing…", false);
-		actions.close(new LinkedHashMap<>(liveFields), msg -> setLiveStatus(msg, !msg.startsWith("Closed")));
+		actions.close(new LinkedHashMap<>(candidate), msg ->
+		{
+			if (!isCurrentOperation(operation))
+			{
+				return;
+			}
+			final boolean success = msg.startsWith("Closed");
+			if (!success)
+			{
+				liveFields = new LinkedHashMap<>(previous);
+				rebuildLiveControls();
+			}
+			completeOperation(operation);
+			setLiveStatus(msg, !success);
+		});
 	}
 
 	private void setLiveStatus(String message, boolean error)
