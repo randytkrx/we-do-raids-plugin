@@ -147,7 +147,7 @@ public interface WeDoRaidsConfig extends Config
 	@ConfigItem(
 		keyName = "autoPartyHub",
 		name = "Auto party hub",
-		description = "When hosting, auto-generate a short party passphrase (like 'catdog') and create the RuneLite party for it when your raid is posted, so joiners can use the Party plugin with ph",
+		description = "When hosting, auto-generate a short party passphrase (like 'catdog') and create the RuneLite party for it when your raid is posted, so joiners can use the Party plugin's ph command.",
 		position = 5
 	)
 	default boolean autoPartyHub()
