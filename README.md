@@ -6,11 +6,11 @@ Find, join and host **We Do Raids** raid recruitment for **Theatre of Blood, Cha
 
 ## What it does
 
-- **Live recruitment feed** — the raid calls posted in the WDR Discord LFR channels appear in a side panel in real time (raid, tier, world, open spots / party size, roles, region, host).
+- **Live recruitment feed** — the raid calls posted in the WDR Discord LFR channels appear in a side panel, updated about every 10 seconds (raid, tier, world, open spots / party size, roles, region, host).
 - **One-click world hopping** — click a call's world to hop straight to it.
 - **Party-board highlights** — WDR teams currently recruiting are highlighted on the in-game Theatre of Blood and Tombs of Amascut party boards.
 - **Host your own call** — post a recruitment straight into the correct WDR channel (raid, tier, world, party size, spots, roles, party hub, description; CoX layout is auto-scouted), then tick roles as they fill or close it — the Discord post updates itself.
-- **KC / tier gating** — you only see and can host in the channels your raid KC qualifies for, matching the WDR Discord's own tier structure.
+- **KC / tier filtering** — panel and hosting-form filters are local; the bridge verifies eligibility and enforces the WDR ban list.
 - **Ban-list aware** — respects the WDR ban list.
 
 ## Getting started
