@@ -965,14 +965,6 @@ public class WeDoRaidsPlugin extends Plugin
 	}
 
 	/**
-	 * @return true if the WDR bridge flagged the local player as banned.
-	 */
-	boolean isLocalPlayerBanned()
-	{
-		return localBanned;
-	}
-
-	/**
 	 * Posts a recruiting call through the bridge into the matching WDR channel.
 	 * Starts on the EDT; reports the asynchronous bridge result through {@code status} on the EDT.
 	 */
