@@ -42,9 +42,10 @@ public interface WeDoRaidsConfig extends Config
 
 	@ConfigSection(
 		name = "Verification",
-		description = "Connects to the official We Do Raids Discord. IMPORTANT: while connected, this plugin sends "
-			+ "your logged-in RuneScape name and your key to the We Do Raids server (wdr.timecapsule.ink) so it can "
-			+ "verify you and enforce the WDR ban list. Nothing is sent until you enter your key below.",
+		description = "No bridge traffic occurs until you enter a verification key. Demo data stays fully local. "
+			+ "With a key, feed requests send your RuneScape name and key for verification and ban-list enforcement; "
+			+ "posting, updating, or closing also sends raid, tier, world, size, spots, roles, scale, fc, layout, partyHub, desc, "
+			+ "and messageId when applicable, plus your in-game name.",
 		position = 1
 	)
 	String remoteSection = "remote";
@@ -169,7 +170,8 @@ public interface WeDoRaidsConfig extends Config
 		keyName = "remoteFeedKey",
 		name = "Verification key",
 		description = "Your personal key from the We Do Raids Discord — type the verify command there to get it. "
-			+ "Pasting it here connects you and sends your RuneScape name + key to the WDR server so you can see and host raids.",
+			+ "The key is stored as a secret RuneLite configuration value. Adding it enables feed requests that send your "
+			+ "RuneScape name and key to the WDR server so you can see and host raids.",
 		section = remoteSection,
 		position = 0,
 		secret = true
@@ -194,7 +196,7 @@ public interface WeDoRaidsConfig extends Config
 	@ConfigItem(
 		keyName = "demoData",
 		name = "Demo data",
-		description = "Show sample recruiting calls alongside the live feed to preview how the panel looks",
+		description = "Show local sample recruiting calls instead of the live feed to preview the panel",
 		section = remoteSection,
 		position = 3
 	)

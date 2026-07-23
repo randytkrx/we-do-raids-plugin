@@ -23,9 +23,10 @@ Find, join and host **We Do Raids** raid recruitment for **Theatre of Blood, Cha
 
 This plugin connects to the We Do Raids bridge (`wdr.timecapsule.ink`), the community's own server.
 
-- **Nothing is sent until you enter your verification key.** With no key the plugin makes no external requests.
-- Once connected, it sends your **logged-in RuneScape name** and your **key** to the WDR server so it can verify you and enforce the WDR ban list. This is required for the plugin to function.
-- It does not send anything else, and it stores nothing beyond your key (kept in your RuneLite config, marked secret).
+- **No bridge traffic occurs until you enter a verification key.** Demo mode is fully local and makes no bridge requests.
+- When fetching the live feed, the plugin sends your **logged-in RuneScape name** (`viewer`) and **verification key** so the bridge can verify you and enforce the WDR ban list.
+- When you choose to post, update, or close a raid, the bridge also receives entered `raid`, `tier`, `world`, `size`, `spots`, `roles`, `scale`, `fc`, `layout`, `partyHub`, and `desc` values, plus `messageId` for an existing post and your in-game name (`ign`/`viewer`).
+- Your key is stored as a secret RuneLite configuration value. The plugin also stores your last raid and tier filter selections; it does not persist recruitment or host-post data.
 
 ## Affiliation
 
