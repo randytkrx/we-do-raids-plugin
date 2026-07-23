@@ -30,7 +30,10 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import net.runelite.api.Client;
@@ -106,14 +109,25 @@ class RaidBoardOverlay extends Overlay
 		final List<Widget> texts = new ArrayList<>();
 		collectText(board, texts);
 
+		final List<Widget> candidates = new ArrayList<>();
 		for (Widget w : texts)
 		{
 			final String norm = normalize(w.getText());
-			if (norm.isEmpty() || !matches(norm, hosts))
+			if (!norm.isEmpty() && matches(norm, hosts))
 			{
-				continue;
+				candidates.add(w);
 			}
-			final Rectangle b = w.getBounds();
+		}
+		if (candidates.isEmpty())
+		{
+			return;
+		}
+
+		final Map<Widget, Rectangle> bounds = new IdentityHashMap<>();
+		final List<RowHighlight> rows = new ArrayList<>(candidates.size());
+		for (Widget w : candidates)
+		{
+			final Rectangle b = bounds(w, bounds);
 			if (b == null || b.width <= 0)
 			{
 				continue;
@@ -125,15 +139,25 @@ class RaidBoardOverlay extends Overlay
 			{
 				continue;
 			}
+			rows.add(new RowHighlight(b));
+		}
+		if (rows.isEmpty())
+		{
+			return;
+		}
+
+		computeRowExtents(texts, rows, bounds);
+		for (RowHighlight row : rows)
+		{
+			final Rectangle b = row.name;
 			// Span the actual row content (leftmost cell to rightmost cell), so the box
 			// never runs past the board edge, and keep the icon in the left margin so it
 			// never covers the party-size ("1/8") column.
-			final Rectangle row = rowExtent(texts, b);
 			final int size = Math.min(16, Math.max(12, b.height));
 			// Box pulled in ~10px on each side vs the row content; the icon stays parked
 			// just left of the first column ("1/8"), independent of the box edge.
-			final int left = row.x - (size - 5);
-			final int right = row.x + row.width - 4;
+			final int left = row.minX - (size - 5);
+			final int right = row.maxX - 4;
 			final int top = b.y - 1;
 			final int height = b.height;
 			final int width = right - left;
@@ -144,7 +168,7 @@ class RaidBoardOverlay extends Overlay
 			g.drawRect(left, top, width, height);
 			if (icon != null)
 			{
-				g.drawImage(icon, row.x - size - 3, b.y + (b.height - size) / 2, size, size, null);
+				g.drawImage(icon, row.minX - size - 3, b.y + (b.height - size) / 2, size, size, null);
 			}
 		}
 	}
@@ -180,27 +204,57 @@ class RaidBoardOverlay extends Overlay
 		return screenY < -2 || screenY + w.getHeight() > sc.getHeight() + 2;
 	}
 
-	/** Bounding box across all text cells sharing the matched name's row. */
-	private static Rectangle rowExtent(List<Widget> texts, Rectangle name)
+	private static Rectangle bounds(Widget widget, Map<Widget, Rectangle> bounds)
 	{
-		int minX = name.x;
-		int maxX = name.x + name.width;
-		final int mid = name.y + name.height / 2;
-		for (Widget o : texts)
+		if (!bounds.containsKey(widget))
 		{
-			final Rectangle ob = o.getBounds();
+			bounds.put(widget, widget.getBounds());
+		}
+		return bounds.get(widget);
+	}
+
+	private static void computeRowExtents(List<Widget> texts, List<RowHighlight> rows,
+		Map<Widget, Rectangle> bounds)
+	{
+		final List<RowHighlight> sortedRows = new ArrayList<>(rows);
+		sortedRows.sort(Comparator.comparingInt(row -> row.mid));
+		for (Widget text : texts)
+		{
+			final Rectangle ob = bounds(text, bounds);
 			if (ob == null || ob.width <= 0)
 			{
 				continue;
 			}
-			// Same row if this cell's vertical span contains the name row's midline.
-			if (mid >= ob.y && mid <= ob.y + ob.height)
+			for (int index = lowerBound(sortedRows, ob.y); index < sortedRows.size(); index++)
 			{
-				minX = Math.min(minX, ob.x);
-				maxX = Math.max(maxX, ob.x + ob.width);
+				final RowHighlight row = sortedRows.get(index);
+				if (row.mid > ob.y + ob.height)
+				{
+					break;
+				}
+				row.minX = Math.min(row.minX, ob.x);
+				row.maxX = Math.max(row.maxX, ob.x + ob.width);
 			}
 		}
-		return new Rectangle(minX, name.y, maxX - minX, name.height);
+	}
+
+	private static int lowerBound(List<RowHighlight> rows, int y)
+	{
+		int low = 0;
+		int high = rows.size();
+		while (low < high)
+		{
+			final int mid = (low + high) >>> 1;
+			if (rows.get(mid).mid < y)
+			{
+				low = mid + 1;
+			}
+			else
+			{
+				high = mid;
+			}
+		}
+		return low;
 	}
 
 	private static void collectText(Widget w, List<Widget> out)
@@ -231,7 +285,33 @@ class RaidBoardOverlay extends Overlay
 		{
 			return "";
 		}
-		return s.replaceAll("<[^>]+>", "").replace(' ', ' ').toLowerCase().trim();
+		return stripTags(s).replace(' ', ' ').toLowerCase().trim();
+	}
+
+	private static String stripTags(String value)
+	{
+		StringBuilder stripped = null;
+		int copyFrom = 0;
+		int opening = value.indexOf('<');
+		while (opening >= 0)
+		{
+			final int closing = value.indexOf('>', opening + 1);
+			if (closing > opening + 1)
+			{
+				if (stripped == null)
+				{
+					stripped = new StringBuilder(value.length());
+				}
+				stripped.append(value, copyFrom, opening);
+				copyFrom = closing + 1;
+				opening = value.indexOf('<', copyFrom);
+			}
+			else
+			{
+				opening = value.indexOf('<', opening + 1);
+			}
+		}
+		return stripped == null ? value : stripped.append(value, copyFrom, value.length()).toString();
 	}
 
 	private static boolean matches(String rowText, Set<String> hosts)
@@ -244,5 +324,21 @@ class RaidBoardOverlay extends Overlay
 			}
 		}
 		return false;
+	}
+
+	private static final class RowHighlight
+	{
+		private final Rectangle name;
+		private final int mid;
+		private int minX;
+		private int maxX;
+
+		private RowHighlight(Rectangle name)
+		{
+			this.name = name;
+			this.mid = name.y + name.height / 2;
+			this.minX = name.x;
+			this.maxX = name.x + name.width;
+		}
 	}
 }
