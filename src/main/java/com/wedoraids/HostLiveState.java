@@ -5,69 +5,70 @@ import java.util.Map;
 
 /**
  * Owns confirmed remote fields and operation sequencing; {@link HostFormPanel} owns displayed and draft maps.
- * Each lifecycle transition advances the token; stale callbacks fail {@code accepts} and {@code complete} is a no-op.
+ * Each lifecycle transition advances the token; stale callbacks fail {@code isCurrentOperation} and
+ * {@code completeOperation} is a no-op.
  */
 final class HostLiveState
 {
-	private Map<String, String> confirmedFields;
+	private Map<String, String> confirmedLiveFields;
 	private boolean stopped;
-	private boolean inFlight;
+	private boolean operationInFlight;
 	private long operationSequence;
-	private long activeOperation;
+	private long activeOperationToken;
 
-	void enter(Map<String, String> fields)
+	void enterLivePost(Map<String, String> fields)
 	{
 		if (stopped)
 		{
 			return;
 		}
-		confirmedFields = copy(fields);
-		inFlight = false;
-		activeOperation = ++operationSequence;
+		confirmedLiveFields = copy(fields);
+		operationInFlight = false;
+		activeOperationToken = ++operationSequence;
 	}
 
-	void exit()
+	void exitLivePost()
 	{
-		confirmedFields = null;
-		inFlight = false;
-		activeOperation = ++operationSequence;
+		confirmedLiveFields = null;
+		operationInFlight = false;
+		activeOperationToken = ++operationSequence;
 	}
 
-	boolean canStart()
+	boolean canStartOperation()
 	{
-		return !stopped && !inFlight;
+		return !stopped && !operationInFlight;
 	}
 
-	long begin()
+	long beginOperation()
 	{
-		if (!canStart())
+		if (!canStartOperation())
 		{
 			return -1;
 		}
-		inFlight = true;
-		activeOperation = ++operationSequence;
-		return activeOperation;
+		operationInFlight = true;
+		activeOperationToken = ++operationSequence;
+		return activeOperationToken;
 	}
 
-	boolean accepts(long operation)
+	boolean isCurrentOperation(long operation)
 	{
-		return !stopped && inFlight && activeOperation == operation;
+		return !stopped && operationInFlight && activeOperationToken == operation;
 	}
 
 	/** Only the active token can complete; stale completions are no-ops. */
-	void complete(long operation)
+	void completeOperation(long operation)
 	{
-		if (accepts(operation))
+		if (isCurrentOperation(operation))
 		{
-			inFlight = false;
+			operationInFlight = false;
 		}
 	}
 
 	void stop()
 	{
 		stopped = true;
-		inFlight = false;
-		activeOperation = ++operationSequence;
+		operationInFlight = false;
+		activeOperationToken = ++operationSequence;
 	}
 
 	boolean isStopped()
@@ -75,16 +76,16 @@ final class HostLiveState
 		return stopped;
 	}
 
-	Map<String, String> confirmedSnapshot()
+	Map<String, String> confirmedFieldsSnapshot()
 	{
-		return confirmedFields == null ? null : copy(confirmedFields);
+		return confirmedLiveFields == null ? null : copy(confirmedLiveFields);
 	}
 
-	void confirm(Map<String, String> fields)
+	void confirmLiveFields(Map<String, String> fields)
 	{
 		if (!stopped)
 		{
-			confirmedFields = copy(fields);
+			confirmedLiveFields = copy(fields);
 		}
 	}
 

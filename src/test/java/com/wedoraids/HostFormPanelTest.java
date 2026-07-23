@@ -69,9 +69,9 @@ public class HostFormPanelTest
 		actions.completeUpdate("Could not reach the bridge.");
 		onEdt(() ->
 		{
-			final Map<String, String> liveFields = field(panel[0], "liveFields");
-			assertEquals("+2", liveFields.get("spots"));
-			assertEquals("mdps", liveFields.get("roles"));
+			final Map<String, String> displayedLiveFields = field(panel[0], "displayedLiveFields");
+			assertEquals("+2", displayedLiveFields.get("spots"));
+			assertEquals("mdps", displayedLiveFields.get("roles"));
 		});
 	}
 
@@ -110,7 +110,7 @@ public class HostFormPanelTest
 		fields.put("tier", "Standard");
 		fields.put("spots", spots);
 		fields.put("roles", roles);
-		setField(panel, "lastFields", fields);
+		setField(panel, "lastSubmittedFields", fields);
 		panel.enterLivePost("message-id");
 	}
 

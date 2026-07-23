@@ -115,9 +115,9 @@ class HostFormPanel extends JPanel
 	private boolean editingLive;
 
 	/** Fields from the last submission, reused when an acknowledgment enters live mode. */
-	private Map<String, String> lastFields;
+	private Map<String, String> lastSubmittedFields;
 	/** Working copy while a post is live (includes messageId); null when not live. */
-	private Map<String, String> liveFields;
+	private Map<String, String> displayedLiveFields;
 	private final HostLiveState liveState = new HostLiveState();
 
 	// Inactivity guard: after IDLE_MS with no host action, prompt "still here?" for
@@ -275,8 +275,8 @@ class HostFormPanel extends JPanel
 		toggle.setText((expanded ? "－" : "＋") + " Host a raid");
 		// While a post is live the live controls own the panel (unless mid-edit,
 		// when the form is showing the post's fields); keep the other view hidden.
-		form.setVisible(expanded && (liveFields == null || editingLive));
-		livePanel.setVisible(expanded && liveFields != null && !editingLive);
+		form.setVisible(expanded && (displayedLiveFields == null || editingLive));
+		livePanel.setVisible(expanded && displayedLiveFields != null && !editingLive);
 		if (expanded && worldField.getText().trim().isEmpty())
 		{
 			// Default the world box to the world you're currently on.
@@ -562,7 +562,7 @@ class HostFormPanel extends JPanel
 
 	private void doSubmit()
 	{
-		if (!liveState.canStart())
+		if (!liveState.canStartOperation())
 		{
 			return;
 		}
@@ -572,20 +572,20 @@ class HostFormPanel extends JPanel
 			return;
 		}
 
-		if (editingLive && liveFields != null)
+		if (editingLive && displayedLiveFields != null)
 		{
 			// Saving edits to an already-posted call: push an /update, then return to live mode.
 			final Map<String, String> update = new LinkedHashMap<>(fields);
-			update.put("messageId", liveFields.get("messageId"));
-			final long operation = beginOperation();
+			update.put("messageId", displayedLiveFields.get("messageId"));
+			final long operation = liveState.beginOperation();
 			setStatus("Saving…", false);
 			actions.update(update, msg ->
 			{
-				if (!isCurrentOperation(operation))
+				if (!liveState.isCurrentOperation(operation))
 				{
 					return;
 				}
-				completeOperation(operation);
+				liveState.completeOperation(operation);
 				setStatus(msg, !msg.startsWith("Updated"));
 				if (msg.startsWith("Updated"))
 				{
@@ -598,16 +598,16 @@ class HostFormPanel extends JPanel
 		setStatus("Posting…", false);
 		// Remember what we posted so the live edit controls can decrement from it.
 		final Map<String, String> submitted = new LinkedHashMap<>(fields);
-		this.lastFields = new LinkedHashMap<>(submitted);
-		final long operation = beginOperation();
+		this.lastSubmittedFields = new LinkedHashMap<>(submitted);
+		final long operation = liveState.beginOperation();
 		// Convention: the submitter reports success with a message starting "Posted".
 		actions.submit(submitted, msg ->
 		{
-			if (!isCurrentOperation(operation))
+			if (!liveState.isCurrentOperation(operation))
 			{
 				return;
 			}
-			completeOperation(operation);
+			liveState.completeOperation(operation);
 			setStatus(msg, !msg.startsWith("Posted"));
 		});
 	}
@@ -730,7 +730,7 @@ class HostFormPanel extends JPanel
 	/** Re-open the form pre-filled with the live post's fields so the host can change details. */
 	private void beginEdit()
 	{
-		if (!liveState.canStart() || liveFields == null)
+		if (!liveState.canStartOperation() || displayedLiveFields == null)
 		{
 			return;
 		}
@@ -740,7 +740,7 @@ class HostFormPanel extends JPanel
 		idleTimer.stop();
 		promptTimer.stop();
 		idlePromptActive = false;
-		populateForm(liveFields);
+		populateForm(displayedLiveFields);
 		postButton.setText("Save changes");
 		cancelEditButton.setVisible(true);
 		// The channel can't move, so lock the raid/tier while editing an existing post.
@@ -757,7 +757,7 @@ class HostFormPanel extends JPanel
 	/** Abandon an in-progress edit and return to the live controls unchanged. */
 	private void cancelEdit()
 	{
-		if (!liveState.canStart() || !editingLive)
+		if (!liveState.canStartOperation() || !editingLive)
 		{
 			return;
 		}
@@ -795,8 +795,8 @@ class HostFormPanel extends JPanel
 		raidCombo.setEnabled(true);
 		tierCombo.setEnabled(true);
 		setRaidTabsEnabled(true);
-		final String messageId = liveFields != null ? liveFields.get("messageId") : null;
-		lastFields = new LinkedHashMap<>(fields);
+		final String messageId = displayedLiveFields != null ? displayedLiveFields.get("messageId") : null;
+		lastSubmittedFields = new LinkedHashMap<>(fields);
 		form.setVisible(false);
 		enterLivePost(messageId);
 	}
@@ -857,16 +857,16 @@ class HostFormPanel extends JPanel
 	/** Enter live mode for a just-posted call; {@code messageId} identifies it to the bridge. */
 	void enterLivePost(String messageId)
 	{
-		if (liveState.isStopped() || lastFields == null)
+		if (liveState.isStopped() || lastSubmittedFields == null)
 		{
 			return;
 		}
-		liveFields = new LinkedHashMap<>(lastFields);
+		displayedLiveFields = new LinkedHashMap<>(lastSubmittedFields);
 		if (messageId != null && !messageId.isEmpty())
 		{
-			liveFields.put("messageId", messageId);
+			displayedLiveFields.put("messageId", messageId);
 		}
-		liveState.enter(liveFields);
+		liveState.enterLivePost(displayedLiveFields);
 		form.setVisible(false);
 		livePanel.setVisible(true);
 		setLiveStatus(" ", false);
@@ -880,8 +880,8 @@ class HostFormPanel extends JPanel
 	/** Leave live mode (raid closed) and restore the normal form. */
 	void exitLivePost()
 	{
-		liveFields = null;
-		liveState.exit();
+		displayedLiveFields = null;
+		liveState.exitLivePost();
 		idlePromptActive = false;
 		editingLive = false;
 		postButton.setText("Post to Discord");
@@ -900,7 +900,7 @@ class HostFormPanel extends JPanel
 	private List<String> currentRoles()
 	{
 		final List<String> roles = new ArrayList<>();
-		final String raw = liveFields == null ? null : liveFields.get("roles");
+		final String raw = displayedLiveFields == null ? null : displayedLiveFields.get("roles");
 		if (raw != null && !raw.isBlank())
 		{
 			for (String part : raw.split(","))
@@ -936,8 +936,8 @@ class HostFormPanel extends JPanel
 		card.setAlignmentX(Component.LEFT_ALIGNMENT);
 
 		// Header: which raid is live, then the open-spots chip below.
-		final String spots = liveFields.get("spots");
-		JLabel title = new JLabel("Your " + raidLabel(liveFields.get("raid")) + " raid is live");
+		final String spots = displayedLiveFields.get("spots");
+		JLabel title = new JLabel("Your " + raidLabel(displayedLiveFields.get("raid")) + " raid is live");
 		title.setFont(FontManager.getRunescapeSmallFont());
 		title.setForeground(WdrTheme.TEXT);
 		fullWidth(title);
@@ -1098,7 +1098,7 @@ class HostFormPanel extends JPanel
 	/** Idle timer fired: start the 60-second "still here?" countdown. */
 	private void showActivityPrompt()
 	{
-		if (liveState.isStopped() || liveFields == null)
+		if (liveState.isStopped() || displayedLiveFields == null)
 		{
 			return;
 		}
@@ -1146,7 +1146,7 @@ class HostFormPanel extends JPanel
 		promptTimer.stop();
 		final boolean wasPrompting = idlePromptActive;
 		idlePromptActive = false;
-		if (liveFields != null)
+		if (displayedLiveFields != null)
 		{
 			idleTimer.restart();
 		}
@@ -1163,16 +1163,16 @@ class HostFormPanel extends JPanel
 		{
 			return;
 		}
-		final Map<String, String> previous = confirmedSnapshot();
+		final Map<String, String> previous = liveState.confirmedFieldsSnapshot();
 		final List<String> roles = currentRoles();
 		roles.remove(role);
 		if (roles.isEmpty())
 		{
-			liveFields.remove("roles");
+			displayedLiveFields.remove("roles");
 		}
 		else
 		{
-			liveFields.put("roles", String.join(", ", roles));
+			displayedLiveFields.put("roles", String.join(", ", roles));
 		}
 		decrementSpotValue();
 		afterSpotChange(previous);
@@ -1184,7 +1184,7 @@ class HostFormPanel extends JPanel
 		{
 			return;
 		}
-		final Map<String, String> previous = confirmedSnapshot();
+		final Map<String, String> previous = liveState.confirmedFieldsSnapshot();
 		decrementSpotValue();
 		afterSpotChange(previous);
 	}
@@ -1192,12 +1192,12 @@ class HostFormPanel extends JPanel
 	/** Shared tail: full party ("+0") auto-closes; otherwise push the edit and re-arm idle. */
 	private void afterSpotChange(Map<String, String> previous)
 	{
-		if (liveFields == null)
+		if (displayedLiveFields == null)
 		{
 			return;
 		}
-		final Map<String, String> candidate = new LinkedHashMap<>(liveFields);
-		if ("+0".equals(liveFields.get("spots")))
+		final Map<String, String> candidate = new LinkedHashMap<>(displayedLiveFields);
+		if ("+0".equals(displayedLiveFields.get("spots")))
 		{
 			setLiveStatus("Party full — closing raid…", false);
 			doClose(previous, candidate);
@@ -1210,13 +1210,13 @@ class HostFormPanel extends JPanel
 
 	private void decrementSpotValue()
 	{
-		final String spots = liveFields.get("spots");
+		final String spots = displayedLiveFields.get("spots");
 		if (spots != null && spots.startsWith("+"))
 		{
 			try
 			{
 				final int n = Math.max(0, Integer.parseInt(spots.substring(1)) - 1);
-				liveFields.put("spots", "+" + n);
+				displayedLiveFields.put("spots", "+" + n);
 			}
 			catch (NumberFormatException ignored)
 			{
@@ -1227,50 +1227,30 @@ class HostFormPanel extends JPanel
 
 	private boolean canMutateLive()
 	{
-		return liveState.canStart() && liveFields != null;
-	}
-
-	private Map<String, String> confirmedSnapshot()
-	{
-		return liveState.confirmedSnapshot();
-	}
-
-	private long beginOperation()
-	{
-		return liveState.begin();
-	}
-
-	private boolean isCurrentOperation(long operation)
-	{
-		return liveState.accepts(operation);
-	}
-
-	private void completeOperation(long operation)
-	{
-		liveState.complete(operation);
+		return liveState.canStartOperation() && displayedLiveFields != null;
 	}
 
 	private void pushUpdate(Map<String, String> previous, Map<String, String> candidate)
 	{
-		final long operation = beginOperation();
+		final long operation = liveState.beginOperation();
 		setLiveStatus("Updating…", false);
 		actions.update(new LinkedHashMap<>(candidate), msg ->
 		{
-			if (!isCurrentOperation(operation))
+			if (!liveState.isCurrentOperation(operation))
 			{
 				return;
 			}
 			final boolean success = msg.startsWith("Updated");
 			if (success)
 			{
-				liveState.confirm(candidate);
+				liveState.confirmLiveFields(candidate);
 			}
 			else
 			{
-				liveFields = new LinkedHashMap<>(previous);
+				displayedLiveFields = new LinkedHashMap<>(previous);
 				rebuildLiveControls();
 			}
-			completeOperation(operation);
+			liveState.completeOperation(operation);
 			setLiveStatus(msg, !success);
 		});
 	}
@@ -1281,27 +1261,27 @@ class HostFormPanel extends JPanel
 		{
 			return;
 		}
-		final Map<String, String> snapshot = confirmedSnapshot();
+		final Map<String, String> snapshot = liveState.confirmedFieldsSnapshot();
 		doClose(snapshot, snapshot);
 	}
 
 	private void doClose(Map<String, String> previous, Map<String, String> candidate)
 	{
-		final long operation = beginOperation();
+		final long operation = liveState.beginOperation();
 		setLiveStatus("Closing…", false);
 		actions.close(new LinkedHashMap<>(candidate), msg ->
 		{
-			if (!isCurrentOperation(operation))
+			if (!liveState.isCurrentOperation(operation))
 			{
 				return;
 			}
 			final boolean success = msg.startsWith("Closed");
 			if (!success)
 			{
-				liveFields = new LinkedHashMap<>(previous);
+				displayedLiveFields = new LinkedHashMap<>(previous);
 				rebuildLiveControls();
 			}
-			completeOperation(operation);
+			liveState.completeOperation(operation);
 			setLiveStatus(msg, !success);
 		});
 	}

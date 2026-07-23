@@ -91,17 +91,17 @@ public class IdentityLifecycleTest
 			Map<String, String> fields = new LinkedHashMap<>();
 			fields.put("raid", "TOB");
 			fields.put("spots", "+2");
-			setField(hostForm, "lastFields", fields);
+			setField(hostForm, "lastSubmittedFields", fields);
 			SwingUtilities.invokeAndWait(() -> hostForm.enterLivePost("message-id"));
 			HostLiveState liveState = (HostLiveState) field(hostForm, "liveState");
-			assertTrue(liveState.begin() > 0);
+			assertTrue(liveState.beginOperation() > 0);
 
 			invoke(plugin, "resetIdentityFeedState");
 			SwingUtilities.invokeAndWait(() -> { });
 
-			assertNull("identity reset retained the live message", field(hostForm, "liveFields"));
-			assertNull("identity reset retained confirmed hosted-raid state", liveState.confirmedSnapshot());
-			assertTrue("identity reset left a host operation in flight", liveState.canStart());
+			assertNull("identity reset retained the live message", field(hostForm, "displayedLiveFields"));
+			assertNull("identity reset retained confirmed hosted-raid state", liveState.confirmedFieldsSnapshot());
+			assertTrue("identity reset left a host operation in flight", liveState.canStartOperation());
 		}
 		finally
 		{

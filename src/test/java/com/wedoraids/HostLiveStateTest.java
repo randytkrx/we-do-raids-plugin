@@ -19,32 +19,32 @@ public class HostLiveStateTest
 		fields.put("raid", "TOB");
 		fields.put("spots", "+2");
 
-		state.enter(fields);
+		state.enterLivePost(fields);
 		fields.put("spots", "+1");
-		assertEquals("+2", state.confirmedSnapshot().get("spots"));
+		assertEquals("+2", state.confirmedFieldsSnapshot().get("spots"));
 
-		final Map<String, String> snapshot = state.confirmedSnapshot();
+		final Map<String, String> snapshot = state.confirmedFieldsSnapshot();
 		snapshot.put("spots", "+0");
-		assertEquals("+2", state.confirmedSnapshot().get("spots"));
+		assertEquals("+2", state.confirmedFieldsSnapshot().get("spots"));
 
-		state.confirm(snapshot);
-		assertEquals("+0", state.confirmedSnapshot().get("spots"));
+		state.confirmLiveFields(snapshot);
+		assertEquals("+0", state.confirmedFieldsSnapshot().get("spots"));
 	}
 
 	@Test
 	public void beginAcceptsOnlyOneCurrentOperation()
 	{
 		final HostLiveState state = new HostLiveState();
-		final long operation = state.begin();
+		final long operation = state.beginOperation();
 
 		assertTrue(operation > 0);
-		assertFalse(state.canStart());
-		assertTrue(state.accepts(operation));
-		assertEquals(-1, state.begin());
+		assertFalse(state.canStartOperation());
+		assertTrue(state.isCurrentOperation(operation));
+		assertEquals(-1, state.beginOperation());
 
-		state.complete(operation);
-		assertTrue(state.canStart());
-		assertFalse(state.accepts(operation));
+		state.completeOperation(operation);
+		assertTrue(state.canStartOperation());
+		assertFalse(state.isCurrentOperation(operation));
 	}
 
 	@Test
@@ -53,16 +53,16 @@ public class HostLiveStateTest
 		final HostLiveState state = new HostLiveState();
 		final Map<String, String> fields = new LinkedHashMap<>();
 		fields.put("messageId", "message-id");
-		state.enter(fields);
-		final long operation = state.begin();
+		state.enterLivePost(fields);
+		final long operation = state.beginOperation();
 
 		state.stop();
 
 		assertTrue(state.isStopped());
-		assertFalse(state.canStart());
-		assertFalse(state.accepts(operation));
-		assertEquals("message-id", state.confirmedSnapshot().get("messageId"));
-		assertEquals(-1, state.begin());
+		assertFalse(state.canStartOperation());
+		assertFalse(state.isCurrentOperation(operation));
+		assertEquals("message-id", state.confirmedFieldsSnapshot().get("messageId"));
+		assertEquals(-1, state.beginOperation());
 	}
 
 	@Test
@@ -71,13 +71,13 @@ public class HostLiveStateTest
 		final HostLiveState state = new HostLiveState();
 		final Map<String, String> fields = new LinkedHashMap<>();
 		fields.put("messageId", "message-id");
-		state.enter(fields);
-		final long operation = state.begin();
+		state.enterLivePost(fields);
+		final long operation = state.beginOperation();
 
-		state.exit();
+		state.exitLivePost();
 
-		assertNull(state.confirmedSnapshot());
-		assertTrue(state.canStart());
-		assertFalse(state.accepts(operation));
+		assertNull(state.confirmedFieldsSnapshot());
+		assertTrue(state.canStartOperation());
+		assertFalse(state.isCurrentOperation(operation));
 	}
 }
