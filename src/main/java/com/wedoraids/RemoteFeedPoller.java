@@ -40,10 +40,15 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
+@FunctionalInterface
+interface BridgeStatusListener
+{
+	void onBridgeStatus(long lifecycle, boolean online);
+}
+
 /**
  * Polls an external bridge (the WDR Discord bot on the VPS) for recruiting calls
- * and forwards new ones to the panel. Stateless across restarts; de-dupes within
- * a session so the same call isn't re-added on every poll.
+ * and forwards the bridge's full current list to the panel on every poll.
  */
 @Slf4j
 class RemoteFeedPoller
@@ -54,12 +59,16 @@ class RemoteFeedPoller
 	private final Consumer<List<RecruitEntry>> onEntries;
 	private final Consumer<Boolean> onBanned;
 	/** Called after each poll with whether the bridge responded successfully. */
-	private final Consumer<Boolean> onStatus;
+	private final BridgeStatusListener onStatus;
 	/** Called with whether the bridge considers this player verified. */
 	private final Consumer<Boolean> onVerified;
+	private final Object requestLock = new Object();
+	private final Object publicationLock = new Object();
+	private Call activeCall;
+	private long pollEpoch;
 
 	RemoteFeedPoller(OkHttpClient okHttpClient, Gson gson, Consumer<List<RecruitEntry>> onEntries,
-		Consumer<Boolean> onBanned, Consumer<Boolean> onStatus, Consumer<Boolean> onVerified)
+		Consumer<Boolean> onBanned, BridgeStatusListener onStatus, Consumer<Boolean> onVerified)
 	{
 		this.okHttpClient = okHttpClient;
 		this.gson = gson;
@@ -71,10 +80,16 @@ class RemoteFeedPoller
 
 	void poll(String url, String key, String viewer)
 	{
-		final HttpUrl parsed = HttpUrl.parse(url.trim());
+		poll(url, key, viewer, pollEpoch(), 0);
+	}
+
+	void poll(String url, String key, String viewer, long epoch, long lifecycle)
+	{
+		final HttpUrl parsed = url == null ? null : HttpUrl.parse(url.trim());
 		if (parsed == null)
 		{
 			log.debug("We Do Raids: invalid remote feed URL: {}", url);
+			publishIfCurrent(epoch, () -> onStatus.onBridgeStatus(lifecycle, false));
 			return;
 		}
 
@@ -90,63 +105,158 @@ class RemoteFeedPoller
 		}
 
 		final Request request = new Request.Builder().url(builder.build()).build();
-		okHttpClient.newCall(request).enqueue(new Callback()
+		final Call requestCall;
+		synchronized (requestLock)
 		{
-			@Override
-			public void onFailure(Call call, IOException e)
+			if (epoch != pollEpoch || activeCall != null)
 			{
-				log.debug("We Do Raids: remote feed request failed", e);
-				onStatus.accept(false);
+				return;
 			}
+			requestCall = okHttpClient.newCall(request);
+			activeCall = requestCall;
+		}
 
-			@Override
-			public void onResponse(Call call, Response response)
+		try
+		{
+			requestCall.enqueue(new Callback()
 			{
-				try (Response r = response)
+				@Override
+				public void onFailure(Call call, IOException e)
 				{
-					onStatus.accept(r.isSuccessful());
-					if (!r.isSuccessful() || r.body() == null)
-					{
-						log.debug("We Do Raids: remote feed returned {}", r.code());
-						return;
-					}
+					log.debug("We Do Raids: remote feed request failed", e);
+					dispatch(requestCall, epoch, () -> onStatus.onBridgeStatus(lifecycle, false));
+				}
 
-					final FeedResponse feed = gson.fromJson(r.body().charStream(), FeedResponse.class);
-					if (feed == null)
+				@Override
+				public void onResponse(Call call, Response response)
+				{
+					try (Response r = response)
 					{
-						return;
-					}
-
-					if (feed.viewerVerified != null)
-					{
-						onVerified.accept(feed.viewerVerified);
-					}
-
-					if (feed.viewerBanned != null)
-					{
-						onBanned.accept(feed.viewerBanned);
-					}
-
-					final List<RecruitEntry> out = new ArrayList<>();
-					if (feed.entries != null)
-					{
-						for (FeedEntry fe : feed.entries)
+						if (!r.isSuccessful() || r.body() == null)
 						{
-							final RecruitEntry entry = convert(fe);
-							if (entry != null)
+							log.debug("We Do Raids: remote feed returned {}", r.code());
+							dispatch(requestCall, epoch, () -> onStatus.onBridgeStatus(lifecycle, false));
+							return;
+						}
+
+						final FeedResponse feed = gson.fromJson(r.body().charStream(), FeedResponse.class);
+						if (feed == null)
+						{
+							dispatch(requestCall, epoch, () -> onStatus.onBridgeStatus(lifecycle, false));
+							return;
+						}
+
+						final List<RecruitEntry> out = new ArrayList<>();
+						if (feed.entries != null)
+						{
+							for (FeedEntry fe : feed.entries)
 							{
-								out.add(entry);
+								final RecruitEntry entry = convert(fe);
+								if (entry != null)
+								{
+									out.add(entry);
+								}
 							}
 						}
+
+						dispatch(requestCall, epoch, () ->
+						{
+							onStatus.onBridgeStatus(lifecycle, true);
+							if (feed.viewerVerified != null)
+							{
+								onVerified.accept(feed.viewerVerified);
+							}
+							if (feed.viewerBanned != null)
+							{
+								onBanned.accept(feed.viewerBanned);
+							}
+							onEntries.accept(out);
+						});
 					}
-					onEntries.accept(out);
+					catch (Exception e)
+					{
+						log.debug("We Do Raids: failed to parse remote feed", e);
+						dispatch(requestCall, epoch, () -> onStatus.onBridgeStatus(lifecycle, false));
+					}
 				}
-				catch (Exception e)
+			});
+		}
+		catch (RuntimeException e)
+		{
+			log.debug("We Do Raids: failed to enqueue remote feed request", e);
+			dispatch(requestCall, epoch, () -> onStatus.onBridgeStatus(lifecycle, false));
+		}
+	}
+
+	long pollEpoch()
+	{
+		synchronized (requestLock)
+		{
+			return pollEpoch;
+		}
+	}
+
+	void cancel()
+	{
+		final Call call;
+		synchronized (requestLock)
+		{
+			pollEpoch++;
+			call = activeCall;
+			activeCall = null;
+		}
+		if (call != null)
+		{
+			call.cancel();
+		}
+		awaitPublicationBoundary();
+	}
+
+	private void dispatch(Call call, long epoch, Runnable callback)
+	{
+		synchronized (publicationLock)
+		{
+			if (!claimCurrent(call, epoch))
+			{
+				return;
+			}
+			callback.run();
+		}
+	}
+
+	private void awaitPublicationBoundary()
+	{
+		synchronized (publicationLock)
+		{
+		}
+	}
+
+	private void publishIfCurrent(long epoch, Runnable callback)
+	{
+		synchronized (publicationLock)
+		{
+			synchronized (requestLock)
+			{
+				if (pollEpoch != epoch || activeCall != null)
 				{
-					log.debug("We Do Raids: failed to parse remote feed", e);
+					return;
 				}
 			}
-		});
+			callback.run();
+		}
+	}
+
+	private boolean claimCurrent(Call call, long epoch)
+	{
+		synchronized (requestLock)
+		{
+			if (activeCall == call && pollEpoch == epoch)
+			{
+				activeCall = null;
+				return true;
+			}
+			return false;
+		}
 	}
 
 	private static RecruitEntry convert(FeedEntry fe)
