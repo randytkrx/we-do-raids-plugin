@@ -131,20 +131,17 @@ class HostFormPanel extends JPanel
 	private int promptRemaining;
 	private boolean idlePromptActive;
 
-	HostFormPanel(HostActions actions, java.util.function.IntSupplier currentWorld,
-		java.util.function.Supplier<String> coxLayout, java.util.function.Supplier<String> localIgn,
-		java.util.function.ToIntFunction<RaidType> userKc, Runnable requestKc, Runnable onIdleWarn,
-		java.util.function.BooleanSupplier autoHub, java.util.function.IntFunction<String> worldBlockReason)
+	HostFormPanel(HostDependencies dependencies)
 	{
-		this.actions = actions;
-		this.onIdleWarn = onIdleWarn;
-		this.currentWorld = currentWorld;
-		this.coxLayout = coxLayout;
-		this.localIgn = localIgn;
-		this.userKc = userKc;
-		this.requestKc = requestKc;
-		this.autoHub = autoHub;
-		this.worldBlockReason = worldBlockReason;
+		this.actions = dependencies.actions();
+		this.onIdleWarn = dependencies.onIdleWarn();
+		this.currentWorld = dependencies.currentWorld();
+		this.coxLayout = dependencies.coxLayout();
+		this.localIgn = dependencies.localIgn();
+		this.userKc = dependencies.userKc();
+		this.requestKc = dependencies.requestKc();
+		this.autoHub = dependencies.autoHub();
+		this.worldBlockReason = dependencies.worldBlockReason();
 
 		setLayout(new BorderLayout(0, 4));
 		setOpaque(false);

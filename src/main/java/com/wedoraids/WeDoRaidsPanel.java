@@ -73,21 +73,16 @@ class WeDoRaidsPanel extends PluginPanel
 	private boolean restoring;
 	private BridgeStatus bridgeStatus = BridgeStatus.OFF;
 
-	WeDoRaidsPanel(WeDoRaidsConfig config, HostFormPanel.HostActions hostActions,
-		java.util.function.BiConsumer<String, String> saveFilter,
-		java.util.function.IntConsumer onHopWorld, java.util.function.IntSupplier currentWorld,
-		java.util.function.Supplier<String> coxLayout, java.util.function.Supplier<String> localIgn,
-		java.util.function.ToIntFunction<RaidType> userKc, Runnable requestKc, Runnable onIdleWarn,
-		java.util.function.BooleanSupplier autoHub, java.util.function.Consumer<String> onJoinHub,
-		Runnable onRefresh, java.util.function.IntFunction<String> worldBlockReason)
+	WeDoRaidsPanel(WeDoRaidsConfig config, HostDependencies hostDependencies,
+		PanelDependencies panelDependencies)
 	{
 		// Manage our own scrolling so the Olm header/filters stay fixed and only the list scrolls.
 		super(false);
 		this.config = config;
-		this.saveFilter = saveFilter;
-		this.onHopWorld = onHopWorld;
-		this.onJoinHub = onJoinHub;
-		this.onRefresh = onRefresh;
+		this.saveFilter = panelDependencies.saveFilter();
+		this.onHopWorld = panelDependencies.onHopWorld();
+		this.onJoinHub = panelDependencies.onJoinHub();
+		this.onRefresh = panelDependencies.onRefresh();
 
 		setLayout(new BorderLayout(0, 8));
 		setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -100,7 +95,7 @@ class WeDoRaidsPanel extends PluginPanel
 		top.add(Box.createVerticalStrut(6));
 
 		// Host form sits up top, above the filters, so hosting is the first action.
-		hostForm = new HostFormPanel(hostActions, currentWorld, coxLayout, localIgn, userKc, requestKc, onIdleWarn, autoHub, worldBlockReason);
+		hostForm = new HostFormPanel(hostDependencies);
 		hostForm.setAlignmentX(Component.LEFT_ALIGNMENT);
 		top.add(hostForm);
 		top.add(Box.createVerticalStrut(6));

@@ -1,11 +1,11 @@
 package com.wedoraids;
 
-import static com.wedoraids.LifecycleTestSupport.feedConfig;
-import static com.wedoraids.LifecycleTestSupport.invoke;
-import static com.wedoraids.LifecycleTestSupport.setField;
+import static com.wedoraids.LifecyclePluginFixtures.feedConfig;
+import static com.wedoraids.LifecyclePluginFixtures.invoke;
+import static com.wedoraids.LifecyclePluginFixtures.setField;
 import static org.junit.Assert.assertEquals;
 
-import com.wedoraids.LifecycleTestSupport.RecordingNotificationPlugin;
+import com.wedoraids.LifecyclePluginFixtures.RecordingNotificationPlugin;
 import java.time.Instant;
 import java.util.Arrays;
 import org.junit.Test;

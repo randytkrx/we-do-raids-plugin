@@ -1,24 +1,24 @@
 package com.wedoraids;
 
-import static com.wedoraids.LifecycleTestSupport.await;
-import static com.wedoraids.LifecycleTestSupport.awaitIgnoringInterrupt;
-import static com.wedoraids.LifecycleTestSupport.config;
-import static com.wedoraids.LifecycleTestSupport.declaredMethod;
-import static com.wedoraids.LifecycleTestSupport.field;
-import static com.wedoraids.LifecycleTestSupport.invoke;
-import static com.wedoraids.LifecycleTestSupport.invokeBridgeStatus;
-import static com.wedoraids.LifecycleTestSupport.mutableConfig;
-import static com.wedoraids.LifecycleTestSupport.plugin;
-import static com.wedoraids.LifecycleTestSupport.setField;
+import static com.wedoraids.LifecycleExecutorFixtures.await;
+import static com.wedoraids.LifecycleWorldFixtures.awaitIgnoringInterrupt;
+import static com.wedoraids.LifecyclePluginFixtures.config;
+import static com.wedoraids.LifecyclePluginFixtures.declaredMethod;
+import static com.wedoraids.LifecyclePluginFixtures.field;
+import static com.wedoraids.LifecyclePluginFixtures.invoke;
+import static com.wedoraids.LifecyclePluginFixtures.invokeBridgeStatus;
+import static com.wedoraids.LifecyclePluginFixtures.mutableConfig;
+import static com.wedoraids.LifecyclePluginFixtures.plugin;
+import static com.wedoraids.LifecyclePluginFixtures.setField;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.google.gson.Gson;
-import com.wedoraids.LifecycleTestSupport.CapturingScheduledExecutor;
-import com.wedoraids.LifecycleTestSupport.ImmediateScheduledExecutor;
-import com.wedoraids.LifecycleTestSupport.RecordingBridgePanel;
+import com.wedoraids.LifecycleExecutorFixtures.CapturingScheduledExecutor;
+import com.wedoraids.LifecycleExecutorFixtures.ImmediateScheduledExecutor;
+import com.wedoraids.LifecyclePanelFixtures.RecordingBridgePanel;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Set;
@@ -80,7 +80,7 @@ public class RemoteFeedSchedulingLifecycleTest
 	}
 
 	@Test
-	public void cancelledScheduledPollCannotStartWithObsoleteEpoch()
+	public void cancelledScheduledPollCannotStartWithObsoleteRequestGeneration()
 		throws Exception
 	{
 		CapturingScheduledExecutor executor = new CapturingScheduledExecutor();
@@ -96,10 +96,10 @@ public class RemoteFeedSchedulingLifecycleTest
 			assertEquals(2, executor.taskCount());
 			assertTrue(executor.future(0).isCancelled());
 			executor.runTask(0);
-			assertFalse("a cancelled schedule started a poll with its obsolete epoch",
+			assertFalse("a cancelled schedule started a poll with its obsolete request generation",
 				polled.await(0, TimeUnit.MILLISECONDS));
 			executor.runTask(1);
-			assertTrue("the current schedule did not start with its issued epoch",
+			assertTrue("the current schedule did not start with its issued request generation",
 				polled.await(5, TimeUnit.SECONDS));
 		}
 		finally
@@ -141,7 +141,7 @@ public class RemoteFeedSchedulingLifecycleTest
 					bridgeStatusListener.onBridgeStatus(lifecycle, online), value -> { })
 			{
 				@Override
-				void poll(String url, String key, String viewer, long epoch, long lifecycle)
+				void poll(String url, String key, String viewer, long requestGeneration, long lifecycle)
 				{
 					bridgeStatusListener.onBridgeStatus(lifecycle, true);
 				}
@@ -176,7 +176,7 @@ public class RemoteFeedSchedulingLifecycleTest
 		try
 		{
 			setField(plugin, "panel", panel);
-			setField(plugin, "feedLifecycleGeneration", 7L);
+			setField(plugin, "feedScheduleGeneration", 7L);
 			SwingUtilities.invokeLater(() ->
 			{
 				edtBlocked.countDown();
@@ -184,7 +184,7 @@ public class RemoteFeedSchedulingLifecycleTest
 			});
 			await(edtBlocked);
 			invokeBridgeStatus(plugin, BridgeStatus.ONLINE, 7L);
-			setField(plugin, "feedLifecycleGeneration", 8L);
+			setField(plugin, "feedScheduleGeneration", 8L);
 			releaseEdt.countDown();
 			SwingUtilities.invokeAndWait(() -> { });
 

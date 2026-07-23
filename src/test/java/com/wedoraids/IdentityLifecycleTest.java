@@ -1,12 +1,12 @@
 package com.wedoraids;
 
-import static com.wedoraids.LifecycleTestSupport.blockingResponse;
-import static com.wedoraids.LifecycleTestSupport.config;
-import static com.wedoraids.LifecycleTestSupport.field;
-import static com.wedoraids.LifecycleTestSupport.invoke;
-import static com.wedoraids.LifecycleTestSupport.panel;
-import static com.wedoraids.LifecycleTestSupport.plugin;
-import static com.wedoraids.LifecycleTestSupport.setField;
+import static com.wedoraids.LifecycleExecutorFixtures.blockingResponse;
+import static com.wedoraids.LifecyclePluginFixtures.config;
+import static com.wedoraids.LifecyclePluginFixtures.field;
+import static com.wedoraids.LifecyclePluginFixtures.invoke;
+import static com.wedoraids.LifecyclePanelFixtures.panel;
+import static com.wedoraids.LifecyclePluginFixtures.plugin;
+import static com.wedoraids.LifecyclePluginFixtures.setField;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;

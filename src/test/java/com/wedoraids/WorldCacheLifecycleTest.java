@@ -1,21 +1,19 @@
 package com.wedoraids;
 
-import static com.wedoraids.LifecycleTestSupport.field;
-import static com.wedoraids.LifecycleTestSupport.invoke;
-import static com.wedoraids.LifecycleTestSupport.setField;
-import static com.wedoraids.LifecycleTestSupport.world;
-import static com.wedoraids.LifecycleTestSupport.worlds;
+import static com.wedoraids.LifecyclePluginFixtures.invoke;
+import static com.wedoraids.LifecyclePluginFixtures.setField;
+import static com.wedoraids.LifecycleWorldFixtures.world;
+import static com.wedoraids.LifecycleWorldFixtures.worlds;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import com.wedoraids.LifecycleTestSupport.BlockingWorldPlugin;
-import com.wedoraids.LifecycleTestSupport.CompletedWorldPlugin;
-import com.wedoraids.LifecycleTestSupport.RecordingClientThread;
-import com.wedoraids.LifecycleTestSupport.RestartingWorldPlugin;
+import com.wedoraids.LifecycleWorldFixtures.BlockingWorldPlugin;
+import com.wedoraids.LifecycleWorldFixtures.CompletedWorldPlugin;
+import com.wedoraids.LifecycleWorldFixtures.RecordingClientThread;
+import com.wedoraids.LifecycleWorldFixtures.RestartingWorldPlugin;
 import java.util.EnumSet;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.SwingUtilities;

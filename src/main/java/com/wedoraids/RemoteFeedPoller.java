@@ -65,7 +65,7 @@ class RemoteFeedPoller
 	private final Object requestLock = new Object();
 	private final Object publicationLock = new Object();
 	private Call activeCall;
-	private long pollEpoch;
+	private long pollRequestGeneration;
 
 	RemoteFeedPoller(OkHttpClient okHttpClient, Gson gson, Consumer<List<RecruitEntry>> onEntries,
 		Consumer<Boolean> onBanned, BridgeStatusListener onStatus, Consumer<Boolean> onVerified)
@@ -80,16 +80,16 @@ class RemoteFeedPoller
 
 	void poll(String url, String key, String viewer)
 	{
-		poll(url, key, viewer, pollEpoch(), 0);
+		poll(url, key, viewer, pollRequestGeneration(), 0);
 	}
 
-	void poll(String url, String key, String viewer, long epoch, long lifecycle)
+	void poll(String url, String key, String viewer, long pollRequestGeneration, long lifecycle)
 	{
 		final HttpUrl parsed = url == null ? null : HttpUrl.parse(url.trim());
 		if (parsed == null)
 		{
 			log.debug("We Do Raids: invalid remote feed URL: {}", url);
-			publishIfCurrent(epoch, () -> onStatus.onBridgeStatus(lifecycle, false));
+			publishIfCurrent(pollRequestGeneration, () -> onStatus.onBridgeStatus(lifecycle, false));
 			return;
 		}
 
@@ -108,7 +108,7 @@ class RemoteFeedPoller
 		final Call requestCall;
 		synchronized (requestLock)
 		{
-			if (epoch != pollEpoch || activeCall != null)
+			if (pollRequestGeneration != this.pollRequestGeneration || activeCall != null)
 			{
 				return;
 			}
@@ -124,7 +124,7 @@ class RemoteFeedPoller
 				public void onFailure(Call call, IOException e)
 				{
 					log.debug("We Do Raids: remote feed request failed", e);
-					dispatch(requestCall, epoch, () -> onStatus.onBridgeStatus(lifecycle, false));
+					dispatch(requestCall, pollRequestGeneration, () -> onStatus.onBridgeStatus(lifecycle, false));
 				}
 
 				@Override
@@ -135,14 +135,14 @@ class RemoteFeedPoller
 						if (!r.isSuccessful() || r.body() == null)
 						{
 							log.debug("We Do Raids: remote feed returned {}", r.code());
-							dispatch(requestCall, epoch, () -> onStatus.onBridgeStatus(lifecycle, false));
+							dispatch(requestCall, pollRequestGeneration, () -> onStatus.onBridgeStatus(lifecycle, false));
 							return;
 						}
 
 						final FeedResponse feed = gson.fromJson(r.body().charStream(), FeedResponse.class);
 						if (feed == null)
 						{
-							dispatch(requestCall, epoch, () -> onStatus.onBridgeStatus(lifecycle, false));
+							dispatch(requestCall, pollRequestGeneration, () -> onStatus.onBridgeStatus(lifecycle, false));
 							return;
 						}
 
@@ -159,7 +159,7 @@ class RemoteFeedPoller
 							}
 						}
 
-						dispatch(requestCall, epoch, () ->
+						dispatch(requestCall, pollRequestGeneration, () ->
 						{
 							onStatus.onBridgeStatus(lifecycle, true);
 							if (feed.viewerVerified != null)
@@ -176,7 +176,7 @@ class RemoteFeedPoller
 					catch (Exception e)
 					{
 						log.debug("We Do Raids: failed to parse remote feed", e);
-						dispatch(requestCall, epoch, () -> onStatus.onBridgeStatus(lifecycle, false));
+						dispatch(requestCall, pollRequestGeneration, () -> onStatus.onBridgeStatus(lifecycle, false));
 					}
 				}
 			});
@@ -184,15 +184,15 @@ class RemoteFeedPoller
 		catch (RuntimeException e)
 		{
 			log.debug("We Do Raids: failed to enqueue remote feed request", e);
-			dispatch(requestCall, epoch, () -> onStatus.onBridgeStatus(lifecycle, false));
+			dispatch(requestCall, pollRequestGeneration, () -> onStatus.onBridgeStatus(lifecycle, false));
 		}
 	}
 
-	long pollEpoch()
+	long pollRequestGeneration()
 	{
 		synchronized (requestLock)
 		{
-			return pollEpoch;
+			return pollRequestGeneration;
 		}
 	}
 
@@ -201,7 +201,7 @@ class RemoteFeedPoller
 		final Call call;
 		synchronized (requestLock)
 		{
-			pollEpoch++;
+			pollRequestGeneration++;
 			call = activeCall;
 			activeCall = null;
 		}
@@ -212,11 +212,11 @@ class RemoteFeedPoller
 		awaitPublicationBoundary();
 	}
 
-	private void dispatch(Call call, long epoch, Runnable callback)
+	private void dispatch(Call call, long pollRequestGeneration, Runnable callback)
 	{
 		synchronized (publicationLock)
 		{
-			if (!claimCurrent(call, epoch))
+			if (!claimCurrent(call, pollRequestGeneration))
 			{
 				return;
 			}
@@ -231,13 +231,13 @@ class RemoteFeedPoller
 		}
 	}
 
-	private void publishIfCurrent(long epoch, Runnable callback)
+	private void publishIfCurrent(long pollRequestGeneration, Runnable callback)
 	{
 		synchronized (publicationLock)
 		{
 			synchronized (requestLock)
 			{
-				if (pollEpoch != epoch || activeCall != null)
+				if (this.pollRequestGeneration != pollRequestGeneration || activeCall != null)
 				{
 					return;
 				}
@@ -246,11 +246,11 @@ class RemoteFeedPoller
 		}
 	}
 
-	private boolean claimCurrent(Call call, long epoch)
+	private boolean claimCurrent(Call call, long pollRequestGeneration)
 	{
 		synchronized (requestLock)
 		{
-			if (activeCall == call && pollEpoch == epoch)
+			if (activeCall == call && this.pollRequestGeneration == pollRequestGeneration)
 			{
 				activeCall = null;
 				return true;

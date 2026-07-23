@@ -75,7 +75,7 @@ public class RemoteFeedPollerTest
 		RemoteFeedPoller poller = new RemoteFeedPoller(new OkHttpClient(), new Gson(), values -> { }, values -> { },
 			(lifecycle, online) -> lifecycles.add(lifecycle), value -> { });
 
-		poller.poll("not a URL", "secret", "Alice", poller.pollEpoch(), 42L);
+		poller.poll("not a URL", "secret", "Alice", poller.pollRequestGeneration(), 42L);
 
 		assertEquals(Collections.singletonList(42L), lifecycles);
 	}
@@ -109,7 +109,7 @@ public class RemoteFeedPollerTest
 	}
 
 	@Test
-	public void cancelledEpochCannotStartRequest()
+	public void cancelledGenerationCannotStartRequest()
 		throws Exception
 	{
 		AtomicInteger requests = new AtomicInteger();
@@ -120,10 +120,10 @@ public class RemoteFeedPollerTest
 		}).build();
 		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values -> { }, values -> { }, (lifecycle, value) -> { },
 			value -> { });
-		long epoch = poller.pollEpoch();
+		long pollRequestGeneration = poller.pollRequestGeneration();
 
 		poller.cancel();
-		poller.poll("http://bridge.test/recruits", "secret", "Alice", epoch, 0);
+		poller.poll("http://bridge.test/recruits", "secret", "Alice", pollRequestGeneration, 0);
 
 		assertEquals(0, requests.get());
 	}
@@ -192,14 +192,14 @@ public class RemoteFeedPollerTest
 		{
 			poller.poll("http://bridge.test/recruits", "secret", "Alice");
 			assertTrue(publicationStarted.await(5, TimeUnit.SECONDS));
-			long startingEpoch = poller.pollEpoch();
+			long startingGeneration = poller.pollRequestGeneration();
 			cancellation = cancelExecutor.submit(() ->
 			{
 				poller.cancel();
 				cancelReturned.countDown();
 			});
 
-			awaitEpochAdvance(poller, startingEpoch);
+			awaitGenerationAdvance(poller, startingGeneration);
 			assertEquals("cancel returned while a claimed callback was still publishing", 1,
 				cancelReturned.getCount());
 		}
@@ -330,14 +330,14 @@ public class RemoteFeedPollerTest
 		}
 	}
 
-	private static void awaitEpochAdvance(RemoteFeedPoller poller, long startingEpoch)
+	private static void awaitGenerationAdvance(RemoteFeedPoller poller, long startingGeneration)
 	{
 		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-		while (poller.pollEpoch() == startingEpoch)
+		while (poller.pollRequestGeneration() == startingGeneration)
 		{
 			if (System.nanoTime() >= deadline)
 			{
-				throw new AssertionError("Timed out waiting for cancel to advance poll epoch");
+				throw new AssertionError("Timed out waiting for cancel to advance poll request generation");
 			}
 			Thread.yield();
 		}

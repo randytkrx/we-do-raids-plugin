@@ -132,7 +132,7 @@ public class WeDoRaidsPlugin extends Plugin
 	private ScheduledFuture<?> remoteFeedTask;
 	/** Owns feed task replacement; it may nest identityLock, never the reverse. */
 	private final Object feedLifecycleLock = new Object();
-	private long feedLifecycleGeneration;
+	private long feedScheduleGeneration;
 	/** Keys of calls we've already notified about, so we don't re-ping every poll. */
 	private final java.util.Set<String> notifiedKeys = java.util.concurrent.ConcurrentHashMap.newKeySet();
 	/** Normalized host names with an active callout, for the ToB/ToA party-board highlight. */
@@ -170,33 +170,8 @@ public class WeDoRaidsPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		final HostFormPanel.HostActions hostActions = new HostFormPanel.HostActions()
-		{
-			@Override
-			public void submit(java.util.Map<String, String> fields, java.util.function.Consumer<String> status)
-			{
-				hostRaid(fields, status);
-			}
-
-			@Override
-			public void update(java.util.Map<String, String> fields, java.util.function.Consumer<String> status)
-			{
-				updatePost(fields, status);
-			}
-
-			@Override
-			public void close(java.util.Map<String, String> fields, java.util.function.Consumer<String> status)
-			{
-				closePost(fields, status);
-			}
-		};
-		panel = new WeDoRaidsPanel(config, hostActions,
-			(key, value) -> configManager.setConfiguration("wedoraids", key, value),
-			this::hopTo, () -> currentWorld, () -> currentCoxLayout, () -> localPlayerName,
-			this::userKcForRaid, this::fetchKc,
-			this::warnHostIdle,
-			() -> config.autoPartyHub(), this::joinPartyHub,
-			this::rescheduleRemoteFeed, this::worldBlockReason);
+		final HostFormPanel.HostActions hostActions = buildHostActions();
+		panel = buildPanel(hostActions);
 
 		navButton = NavigationButton.builder()
 			.tooltip("We Do Raids")
@@ -221,6 +196,42 @@ public class WeDoRaidsPlugin extends Plugin
 			loadDemoData();
 		}
 		startWorldCache();
+	}
+
+	private HostFormPanel.HostActions buildHostActions()
+	{
+		return new HostFormPanel.HostActions()
+		{
+			@Override
+			public void submit(java.util.Map<String, String> fields, java.util.function.Consumer<String> status)
+			{
+				hostRaid(fields, status);
+			}
+
+			@Override
+			public void update(java.util.Map<String, String> fields, java.util.function.Consumer<String> status)
+			{
+				updatePost(fields, status);
+			}
+
+			@Override
+			public void close(java.util.Map<String, String> fields, java.util.function.Consumer<String> status)
+			{
+				closePost(fields, status);
+			}
+		};
+	}
+
+	private WeDoRaidsPanel buildPanel(HostFormPanel.HostActions hostActions)
+	{
+		final HostDependencies hostDependencies = new HostDependencies(hostActions,
+			() -> currentWorld, () -> currentCoxLayout, () -> localPlayerName,
+			this::userKcForRaid, this::fetchKc, this::warnHostIdle,
+			() -> config.autoPartyHub(), this::worldBlockReason);
+		final PanelDependencies panelDependencies = new PanelDependencies(
+			(key, value) -> configManager.setConfiguration("wedoraids", key, value),
+			this::hopTo, this::joinPartyHub, this::rescheduleRemoteFeed);
+		return new WeDoRaidsPanel(config, hostDependencies, panelDependencies);
 	}
 
 	@Override
@@ -349,7 +360,7 @@ public class WeDoRaidsPlugin extends Plugin
 		final String key;
 		final String viewer;
 		final long identity;
-		final long pollEpoch;
+		final long pollRequestGeneration;
 		final long lifecycle;
 		final boolean demo;
 		synchronized (feedLifecycleLock)
@@ -365,8 +376,8 @@ public class WeDoRaidsPlugin extends Plugin
 			}
 			final boolean eligible = poller != null && !demo && !key.trim().isEmpty() && viewer != null;
 			url = eligible ? bridgeUrl() : null;
-			pollEpoch = eligible ? poller.pollEpoch() : 0;
-			lifecycle = feedLifecycleGeneration;
+			pollRequestGeneration = eligible ? poller.pollRequestGeneration() : 0;
+			lifecycle = feedScheduleGeneration;
 		}
 		if (url == null)
 		{
@@ -382,25 +393,25 @@ public class WeDoRaidsPlugin extends Plugin
 		}
 
 		setBridgeStatus(BridgeStatus.CONNECTING, lifecycle);
-		installRemoteFeedTask(poller, url, key, viewer, identity, pollEpoch, lifecycle);
+		installRemoteFeedTask(poller, url, key, viewer, identity, pollRequestGeneration, lifecycle);
 	}
 
 	private void installRemoteFeedTask(RemoteFeedPoller poller, String url, String key, String viewer,
-		long identity, long pollEpoch, long lifecycle)
+		long identity, long pollRequestGeneration, long lifecycle)
 	{
 		final ScheduledFuture<?> replacement = executor.scheduleWithFixedDelay(
 			() ->
 			{
 				if (identityGeneration.get() == identity)
 				{
-					poller.poll(url, key, viewer, pollEpoch, lifecycle);
+					poller.poll(url, key, viewer, pollRequestGeneration, lifecycle);
 				}
 			},
 			0, POLL_SECONDS, TimeUnit.SECONDS);
 		final boolean installed;
 		synchronized (feedLifecycleLock)
 		{
-			installed = feedLifecycleGeneration == lifecycle;
+			installed = feedScheduleGeneration == lifecycle;
 			if (installed)
 			{
 				remoteFeedTask = replacement;
@@ -519,7 +530,7 @@ public class WeDoRaidsPlugin extends Plugin
 		{
 			synchronized (feedLifecycleLock)
 			{
-				if (identityGeneration.get() == identity && feedLifecycleGeneration == lifecycle
+				if (identityGeneration.get() == identity && feedScheduleGeneration == lifecycle
 					&& panel == currentPanel)
 				{
 					currentPanel.setBridgeStatus(status);
@@ -1119,7 +1130,7 @@ public class WeDoRaidsPlugin extends Plugin
 
 	private void cancelRemoteFeedLocked()
 	{
-		feedLifecycleGeneration++;
+		feedScheduleGeneration++;
 		if (remoteFeedPoller != null)
 		{
 			remoteFeedPoller.cancel();
