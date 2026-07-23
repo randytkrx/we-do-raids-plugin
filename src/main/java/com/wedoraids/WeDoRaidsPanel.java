@@ -384,26 +384,6 @@ class WeDoRaidsPanel extends PluginPanel
 	}
 
 	/**
-	 * Adds an entry, replacing any earlier call from the same sender for the same raid.
-	 * Used by demo mode. Must be called on the EDT.
-	 */
-	void addEntry(RecruitEntry entry)
-	{
-		if (banned || !verified || !loggedIn)
-		{
-			return;
-		}
-		entries.removeIf(e -> e.getSender().equalsIgnoreCase(entry.getSender())
-			&& e.getRaidType() == entry.getRaidType());
-		entries.add(0, entry);
-		while (entries.size() > MAX_ENTRIES)
-		{
-			entries.remove(entries.size() - 1);
-		}
-		rebuild();
-	}
-
-	/**
 	 * Replaces the whole list with the bridge's current feed (the source of truth), so
 	 * deleted/closed raids disappear. Must be called on the EDT.
 	 */
