@@ -84,10 +84,8 @@ class RaidBoardOverlay extends Overlay
 	@Override
 	public Dimension render(Graphics2D g)
 	{
-		// The scrollable board of all parties (what we mainly want to highlight)...
 		renderBoard(g, InterfaceID.TobPartylist.UNIVERSE, tobHosts.get());
 		renderBoard(g, InterfaceID.ToaPartylist.UNIVERSE, toaHosts.get());
-		// ...plus the single-party details view (shown when you open/are in a party).
 		renderBoard(g, InterfaceID.TobPartydetails.UNIVERSE, tobHosts.get());
 		renderBoard(g, InterfaceID.ToaPartydetails.UNIVERSE, toaHosts.get());
 		return null;
@@ -206,11 +204,13 @@ class RaidBoardOverlay extends Overlay
 
 	private static Rectangle bounds(Widget widget, Map<Widget, Rectangle> bounds)
 	{
-		if (!bounds.containsKey(widget))
+		if (bounds.containsKey(widget))
 		{
-			bounds.put(widget, widget.getBounds());
+			return bounds.get(widget);
 		}
-		return bounds.get(widget);
+		final Rectangle widgetBounds = widget.getBounds();
+		bounds.put(widget, widgetBounds);
+		return widgetBounds;
 	}
 
 	private static void computeRowExtents(List<Widget> texts, List<RowHighlight> rows,

@@ -37,8 +37,8 @@ import net.runelite.client.ui.FontManager;
 
 /**
  * A rounded, hover-aware pill button in the WDR palette. Three variants:
- * PRIMARY (filled green — a positive action), GHOST (outlined — a soft action) and
- * DANGER (red — a destructive action). Painted by hand so it looks nothing like the
+ * PRIMARY (filled green, a positive action), GHOST (outlined, a soft action) and
+ * DANGER (red, a destructive action). Painted by hand so it looks nothing like the
  * default Swing button.
  */
 class WdrButton extends JButton

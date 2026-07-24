@@ -96,7 +96,7 @@ class WeDoRaidsPanel extends PluginPanel
 		top.add(buildHeader());
 		top.add(Box.createVerticalStrut(6));
 
-		// Demo mode replaces the live feed with samples, so say so plainly — nobody should
+		// Demo mode replaces the live feed with samples, so say so plainly; nobody should
 		// mistake a sample call for a real team they can join.
 		demoBanner.setAlignmentX(Component.LEFT_ALIGNMENT);
 		top.add(demoBanner);
@@ -137,7 +137,6 @@ class WeDoRaidsPanel extends PluginPanel
 
 		add(buildStatusBar(), BorderLayout.SOUTH);
 
-		updateStatusBar();
 		rebuild();
 	}
 
@@ -200,7 +199,6 @@ class WeDoRaidsPanel extends PluginPanel
 		titleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 		titleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, titleRow.getPreferredSize().height));
 
-		// Olm banner: dark card with a green underline accent.
 		JPanel header = new JPanel();
 		header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
 		header.setBackground(WdrTheme.CARD);
@@ -509,7 +507,7 @@ class WeDoRaidsPanel extends PluginPanel
 				final boolean filtered = !entries.isEmpty();
 				listPanel.add(buildNotice(
 					filtered ? "No matches" : "Waiting for calls",
-					filtered ? "No open raids match this filter — try 'All raids' / 'All tiers'."
+					filtered ? "No open raids match this filter. Try 'All raids' / 'All tiers'."
 						: "Recruiting calls from the We Do Raids Discord will appear here."));
 			}
 			else
@@ -563,7 +561,6 @@ class WeDoRaidsPanel extends PluginPanel
 		worldLabel.setFont(FontManager.getRunescapeSmallFont());
 		if (entry.getWorld() != 0)
 		{
-			// Click the world to quick-hop there.
 			worldLabel.setToolTipText("Click to hop to world " + entry.getWorld());
 			worldLabel.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
 			worldLabel.addMouseListener(new java.awt.event.MouseAdapter()
@@ -626,7 +623,7 @@ class WeDoRaidsPanel extends PluginPanel
 		senderLabel.setForeground(WdrTheme.TEXT);
 		senderLabel.setFont(FontManager.getRunescapeSmallFont());
 		// Hover the IGN to see the poster's own raid KC and the WDR tier that KC unlocks
-		// (not the channel's tier — that's already the badge on the card).
+		// (not the channel's tier, that's already the badge on the card).
 		StringBuilder who = new StringBuilder("<html><b>" + escapeHtml(entry.getSender()) + "</b>");
 		who.append("<br>").append(escapeHtml(entry.getRaidType().getDisplayName())).append(" KC: ")
 			.append(entry.getKc() > 0 ? String.valueOf(entry.getKc()) : "unknown");
@@ -661,11 +658,10 @@ class WeDoRaidsPanel extends PluginPanel
 		messageLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 		body.add(messageLabel);
 
-		// Clickable party hub on its own line: joins the party via the Party plugin.
 		if (entry.getHost() != null && !entry.getHost().trim().isEmpty())
 		{
 			final String hub = entry.getHost().trim();
-			final JLabel hubLabel = new JLabel("ph: " + hub + "  — click to join");
+			final JLabel hubLabel = new JLabel("ph: " + hub + " - click to join");
 			hubLabel.setForeground(WdrTheme.GREEN);
 			hubLabel.setFont(FontManager.getRunescapeSmallFont());
 			hubLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -677,7 +673,7 @@ class WeDoRaidsPanel extends PluginPanel
 				public void mousePressed(java.awt.event.MouseEvent e)
 				{
 					onJoinHub.accept(hub);
-					hubLabel.setText("ph: " + hub + "  — joined");
+					hubLabel.setText("ph: " + hub + " - joined");
 				}
 
 				@Override
@@ -735,7 +731,6 @@ class WeDoRaidsPanel extends PluginPanel
 		return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 	}
 
-	/** A themed empty/banned notice with the WDR logo, so the sidebar never looks blank. */
 	private static JPanel buildDemoBanner()
 	{
 		final JPanel banner = new JPanel(new BorderLayout());
@@ -744,7 +739,7 @@ class WeDoRaidsPanel extends PluginPanel
 			BorderFactory.createLineBorder(WdrTheme.ERROR),
 			BorderFactory.createEmptyBorder(5, 8, 5, 8)));
 
-		final JLabel label = new JLabel("DEMO MODE — sample calls, not live");
+		final JLabel label = new JLabel("DEMO MODE: sample calls, not live");
 		label.setForeground(WdrTheme.ERROR);
 		label.setFont(FontManager.getRunescapeSmallFont());
 		banner.add(label, BorderLayout.CENTER);

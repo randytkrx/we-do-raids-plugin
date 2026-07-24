@@ -166,7 +166,6 @@ class HostFormPanel extends JPanel
 		WdrTheme.styleField(partyHubField);
 		WdrTheme.styleField(descField);
 
-		// Step 1: pick the raid via colored tab buttons; the rest reveals after a pick.
 		JPanel raidRow = new JPanel(new GridLayout(1, 3, 4, 0));
 		raidRow.setOpaque(false);
 		raidTabs[0] = new RaidTab(RaidType.TOB, 0);
@@ -181,7 +180,6 @@ class HostFormPanel extends JPanel
 		form.add(raidRow);
 		form.add(Box.createVerticalStrut(4));
 
-		// Step 2: the details, two fields per row to keep the form short.
 		details.setLayout(new BoxLayout(details, BoxLayout.Y_AXIS));
 		details.setOpaque(false);
 		details.setVisible(false);
@@ -189,10 +187,8 @@ class HostFormPanel extends JPanel
 
 		details.add(pair(labeled("Tier", tierCombo), labeled("World", worldField)));
 		details.add(pair(labeled("Team size", teamCombo), labeled("Open spots", spotsCombo)));
-		// CoX-only pair: scale + friends chat.
 		scaleFcRow = pair(labeled("Scale (0-100)", scaleField), labeled("Friends chat", fcField));
 		details.add(scaleFcRow);
-		// CoX layout, auto-scouted from the raids plugin; shown only for non-CM CoX.
 		layoutRow = labeled("Layout (auto)", layoutField);
 		details.add(layoutRow);
 
@@ -205,7 +201,6 @@ class HostFormPanel extends JPanel
 			cb.setFont(FontManager.getRunescapeSmallFont());
 			roleRow.add(cb);
 		}
-		// The mdps/rdps/nfrz/sfrz checkboxes are ToB-only; hidden for CoX/ToA.
 		roleCheckboxRow = labeled("Roles you need (looking for)", roleRow);
 		details.add(roleCheckboxRow);
 		details.add(labeled("Other roles you need", rolesField));
@@ -232,7 +227,6 @@ class HostFormPanel extends JPanel
 		postButton.setAlignmentX(Component.LEFT_ALIGNMENT);
 		details.add(postButton);
 
-		// Only visible while editing a live post — bail out without saving.
 		WdrTheme.styleButton(cancelEditButton);
 		cancelEditButton.addActionListener(e -> cancelEdit());
 		cancelEditButton.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -328,7 +322,7 @@ class HostFormPanel extends JPanel
 		tierCombo.removeAllItems();
 		for (String t : raid.getTiers())
 		{
-			// kc < 0 means "not loaded yet" — show everything until it arrives.
+			// kc < 0 means "not loaded yet", so show everything until it arrives.
 			if (kc < 0 || raid.minKc(t) <= kc)
 			{
 				tierCombo.addItem(t);
@@ -440,16 +434,12 @@ class HostFormPanel extends JPanel
 		return HUB_SINGLE[r.nextInt(HUB_SINGLE.length)];
 	}
 
-	/** Refresh each tab's text color to reflect the selection. */
 	private void updateRaidTabs()
 	{
 		for (RaidTab t : raidTabs)
 		{
-			if (t != null)
-			{
-				t.setForeground(t.isSelectedTab() ? t.raid.getColor() : WdrTheme.TEXT_DIM);
-				t.repaint();
-			}
+			t.setForeground(t.isSelectedTab() ? t.raid.getColor() : WdrTheme.TEXT_DIM);
+			t.repaint();
 		}
 	}
 
@@ -500,9 +490,19 @@ class HostFormPanel extends JPanel
 			final boolean sel = isSelectedTab();
 			final Color rc = raid.getColor();
 			// Selected: a dark tint of the raid color with a colored outline; else neutral.
-			final Color fill = sel
-				? new Color(rc.getRed() / 5 + 18, rc.getGreen() / 5 + 18, rc.getBlue() / 5 + 18)
-				: (getModel().isRollover() ? WdrTheme.HOVER : WdrTheme.FIELD);
+			final Color fill;
+			if (sel)
+			{
+				fill = new Color(rc.getRed() / 5 + 18, rc.getGreen() / 5 + 18, rc.getBlue() / 5 + 18);
+			}
+			else if (getModel().isRollover())
+			{
+				fill = WdrTheme.HOVER;
+			}
+			else
+			{
+				fill = WdrTheme.FIELD;
+			}
 			g2.setColor(fill);
 			g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
 			g2.setColor(sel ? rc : WdrTheme.BORDER);
@@ -519,7 +519,7 @@ class HostFormPanel extends JPanel
 		return selectedRaid() == RaidType.COX && tier != null && !tier.toString().contains("CM");
 	}
 
-	/** A new CoX raid was scouted — overwrite the auto layout field with the fresh layout. */
+	/** A new CoX raid was scouted; overwrite the auto layout field with the fresh layout. */
 	void refreshCoxLayout()
 	{
 		if (!layoutApplies())
@@ -550,11 +550,6 @@ class HostFormPanel extends JPanel
 		}
 		revalidate();
 		repaint();
-	}
-
-	private String raidCode()
-	{
-		return selectedRaid().name();
 	}
 
 	private void doSubmit()
@@ -612,7 +607,7 @@ class HostFormPanel extends JPanel
 	private Map<String, String> collectValidatedFields()
 	{
 		final Map<String, String> fields = new LinkedHashMap<>();
-		fields.put("raid", raidCode());
+		fields.put("raid", selectedRaid().name());
 		if (tierCombo.getSelectedItem() != null)
 		{
 			fields.put("tier", (String) tierCombo.getSelectedItem());
@@ -630,7 +625,7 @@ class HostFormPanel extends JPanel
 			final String blocked = worldBlockReason.apply(Integer.parseInt(world));
 			if (blocked != null)
 			{
-				setStatus("W" + world + " is " + blocked + " — pick a different world.", true);
+				setStatus("W" + world + " is " + blocked + ", pick a different world.", true);
 				return null;
 			}
 			fields.put("world", world);
@@ -732,7 +727,7 @@ class HostFormPanel extends JPanel
 			return;
 		}
 		editingLive = true;
-		// Editing IS activity — pause the inactivity guard so it can't auto-close the
+		// Editing IS activity, so pause the inactivity guard so it can't auto-close the
 		// raid under the host mid-edit; it re-arms when they save or cancel.
 		idleTimer.stop();
 		promptTimer.stop();
@@ -746,7 +741,7 @@ class HostFormPanel extends JPanel
 		setRaidTabsEnabled(false);
 		livePanel.setVisible(false);
 		form.setVisible(true);
-		setStatus("Editing your live raid — change anything, then Save changes.", false);
+		setStatus("Editing your live raid. Change anything, then Save changes.", false);
 		revalidate();
 		repaint();
 	}
@@ -771,10 +766,7 @@ class HostFormPanel extends JPanel
 	{
 		for (RaidTab t : raidTabs)
 		{
-			if (t != null)
-			{
-				t.setEnabled(enabled);
-			}
+			t.setEnabled(enabled);
 		}
 	}
 
@@ -802,7 +794,19 @@ class HostFormPanel extends JPanel
 	private void populateForm(Map<String, String> f)
 	{
 		final String raid = f.getOrDefault("raid", "TOB");
-		raidCombo.setSelectedIndex(raid.equals("COX") ? 1 : raid.equals("TOA") ? 2 : 0);
+		final int raidIndex;
+		switch (raid)
+		{
+			case "COX":
+				raidIndex = 1;
+				break;
+			case "TOA":
+				raidIndex = 2;
+				break;
+			default:
+				raidIndex = 0;
+		}
+		raidCombo.setSelectedIndex(raidIndex);
 		// Editing an existing post: the raid is known, so show the details + light the tab.
 		raidChosen = true;
 		details.setVisible(true);
@@ -848,8 +852,6 @@ class HostFormPanel extends JPanel
 		updateScaleVisibility();
 		updateLayoutVisibility();
 	}
-
-	// --- Live post mode: after a successful host, the form is replaced by edit controls. ---
 
 	/** Enter live mode for a just-posted call; {@code messageId} identifies it to the bridge. */
 	void enterLivePost(String messageId)
@@ -936,7 +938,7 @@ class HostFormPanel extends JPanel
 		card.add(title);
 		card.add(Box.createVerticalStrut(4));
 
-		JLabel spotsChip = new JLabel((spots == null || spots.isEmpty() ? "—" : spots) + " open");
+		JLabel spotsChip = new JLabel((spots == null || spots.isEmpty() ? "-" : spots) + " open");
 		spotsChip.setFont(FontManager.getRunescapeSmallFont());
 		spotsChip.setForeground(WdrTheme.TEXT);
 		spotsChip.setOpaque(true);
@@ -1054,8 +1056,6 @@ class HostFormPanel extends JPanel
 		}
 	}
 
-	// --- Inactivity guard --------------------------------------------------------
-
 	/** Builds the amber "still hosting?" banner shown once the idle timer fires. */
 	private void buildIdleBanner()
 	{
@@ -1079,7 +1079,7 @@ class HostFormPanel extends JPanel
 		idleBanner.add(idleCountdown);
 		idleBanner.add(Box.createVerticalStrut(7));
 
-		WdrButton here = new WdrButton("I'm here — keep it open", WdrButton.Variant.PRIMARY);
+		WdrButton here = new WdrButton("I'm here, keep it open", WdrButton.Variant.PRIMARY);
 		here.addActionListener(e -> resetIdle());
 		fullWidth(here);
 		idleBanner.add(here);
@@ -1116,7 +1116,7 @@ class HostFormPanel extends JPanel
 		{
 			promptTimer.stop();
 			idlePromptActive = false;
-			setLiveStatus("No response — closing raid…", false);
+			setLiveStatus("No response, closing raid…", false);
 			doClose();
 			// If the close fails the post is still up; re-arm so we prompt again later.
 			if (!liveState.isStopped())
@@ -1184,14 +1184,10 @@ class HostFormPanel extends JPanel
 	/** Shared tail: full party ("+0") auto-closes; otherwise push the edit and re-arm idle. */
 	private void afterSpotChange(Map<String, String> previous)
 	{
-		if (displayedLiveFields == null)
-		{
-			return;
-		}
 		final Map<String, String> candidate = new LinkedHashMap<>(displayedLiveFields);
 		if ("+0".equals(displayedLiveFields.get("spots")))
 		{
-			setLiveStatus("Party full — closing raid…", false);
+			setLiveStatus("Party full, closing raid…", false);
 			doClose(previous, candidate);
 			return;
 		}

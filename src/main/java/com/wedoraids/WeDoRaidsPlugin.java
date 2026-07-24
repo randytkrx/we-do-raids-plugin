@@ -26,7 +26,6 @@ package com.wedoraids;
 
 import com.google.gson.Gson;
 import com.google.inject.Provides;
-import java.awt.BasicStroke;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -77,7 +76,7 @@ import okhttp3.Response;
 @Slf4j
 @PluginDescriptor(
 	name = "We Do Raids",
-	description = "The official We Do Raids Discord plugin — find, join and host WDR raid recruitment (ToB/CoX/ToA) in-game",
+	description = "The official We Do Raids Discord plugin: find, join and host WDR raid recruitment (ToB/CoX/ToA) in-game",
 	tags = {"wdr", "raids", "tob", "cox", "toa", "lfg", "lfm", "recruit", "party", "team"}
 )
 public class WeDoRaidsPlugin extends Plugin
@@ -85,7 +84,7 @@ public class WeDoRaidsPlugin extends Plugin
 	private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 	/** Default We Do Raids bridge; overridable via the advanced config for testing. */
 	private static final String DEFAULT_BRIDGE_URL = "https://wdr.timecapsule.ink/recruits";
-	/** Fixed feed refresh interval (seconds). Locked — not user-configurable. */
+	/** Fixed feed refresh interval (seconds). Locked, not user-configurable. */
 	private static final int POLL_SECONDS = 10;
 
 	@Inject
@@ -151,7 +150,6 @@ public class WeDoRaidsPlugin extends Plugin
 	private volatile int currentWorld;
 	/** Latest scouted CoX layout (non-CM only; the raids plugin never scouts CM). */
 	private volatile String currentCoxLayout;
-	/** Whether the WDR bridge reported the local player as banned. */
 	private volatile boolean localBanned;
 	private volatile boolean localVerified;
 	private final Object identityLock = new Object();
@@ -827,13 +825,13 @@ public class WeDoRaidsPlugin extends Plugin
 	private void warnHostIdle()
 	{
 		notifier.notify(config.hostIdleNotify(),
-			"Your We Do Raids party is idle — open the plugin and click \"I'm here\" or it will auto-close.");
+			"Your We Do Raids party is idle. Open the plugin and click \"I'm here\" or it will auto-close.");
 		clientThread.invokeLater(() ->
 		{
 			if (client.getGameState() == GameState.LOGGED_IN)
 			{
 				client.addChatMessage(net.runelite.api.ChatMessageType.CONSOLE, "",
-					"<col=e57373>We Do Raids:</col> your hosted party is idle — click \"I'm here\" in the "
+					"<col=e57373>We Do Raids:</col> your hosted party is idle, click \"I'm here\" in the "
 						+ "side panel within 60 seconds or it will auto-close.", null);
 			}
 		});
@@ -843,7 +841,7 @@ public class WeDoRaidsPlugin extends Plugin
 	 * Why a world is unsuitable for raid recruiting, or null if it's a normal world.
 	 * Type-based (PvP/High Risk/BH/LMS/DMM/etc.) so the weekly PvP rotation never needs
 	 * hardcoding; unknown world numbers are rejected too. Null when the world list
-	 * hasn't loaded yet (can't verify — don't block).
+	 * hasn't loaded yet (can't verify, don't block).
 	 */
 	String worldBlockReason(int worldId)
 	{
@@ -938,7 +936,7 @@ public class WeDoRaidsPlugin extends Plugin
 				if (client.getGameState() == GameState.LOGGED_IN)
 				{
 					client.addChatMessage(net.runelite.api.ChatMessageType.CONSOLE, "",
-						"<col=e57373>We Do Raids:</col> not hopping to W" + worldId + " — it's " + blockReason + ".", null);
+						"<col=e57373>We Do Raids:</col> not hopping to W" + worldId + ", it's " + blockReason + ".", null);
 				}
 			});
 			return;
@@ -1066,7 +1064,7 @@ public class WeDoRaidsPlugin extends Plugin
 
 		if (localBanned)
 		{
-			reply.accept("You are on the WDR ban list — cannot host.");
+			reply.accept("You are on the WDR ban list and cannot host.");
 			return;
 		}
 		if (viewer == null)
@@ -1155,7 +1153,6 @@ public class WeDoRaidsPlugin extends Plugin
 	private static class HostResult
 	{
 		boolean ok;
-		String posted;
 		String messageId;
 		String error;
 	}
@@ -1174,7 +1171,6 @@ public class WeDoRaidsPlugin extends Plugin
 		}
 	}
 
-	/** Config-driven visibility gate applied to every call (banned/verified/raid/tier/kind/keyword). */
 	private boolean passesFilters(RecruitEntry entry)
 	{
 		return !localBanned
@@ -1312,7 +1308,6 @@ public class WeDoRaidsPlugin extends Plugin
 		BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
 		Graphics2D g = image.createGraphics();
 		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-		g.setStroke(new BasicStroke(1f));
 
 		g.setColor(RaidType.TOB.getColor());
 		g.fillOval(0, 1, 7, 7);
