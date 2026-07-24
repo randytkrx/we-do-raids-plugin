@@ -52,7 +52,9 @@ public class IdentityLifecycleTest
 			@SuppressWarnings("unchecked")
 			Set<String> toaHosts = (Set<String>) field(plugin, "activeToaHosts");
 			toaHosts.add("alice");
-			ScheduledFuture<?> task = executor.schedule(() -> { }, 1, TimeUnit.MINUTES);
+			ScheduledFuture<?> task = executor.schedule(() ->
+			{
+			}, 1, TimeUnit.MINUTES);
 			setField(plugin, "remoteFeedTask", task);
 
 			GameStateChanged event = new GameStateChanged();
@@ -97,7 +99,9 @@ public class IdentityLifecycleTest
 			assertTrue(liveState.beginOperation() > 0);
 
 			invoke(plugin, "resetIdentityFeedState");
-			SwingUtilities.invokeAndWait(() -> { });
+			SwingUtilities.invokeAndWait(() ->
+			{
+			});
 
 			assertNull("identity reset retained the live message", field(hostForm, "displayedLiveFields"));
 			assertNull("identity reset retained confirmed hosted-raid state", liveState.confirmedFieldsSnapshot());

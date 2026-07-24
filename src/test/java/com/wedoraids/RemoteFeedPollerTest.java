@@ -38,11 +38,17 @@ public class RemoteFeedPollerTest
 		{
 			return response(chain, "not json");
 		}).build();
-		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values -> { }, values -> { }, (lifecycle, value) ->
+		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values ->
+		{
+		}, values ->
+		{
+		}, (lifecycle, value) ->
 		{
 			statuses.add(value);
 			completed.countDown();
-		}, value -> { });
+		}, value ->
+		{
+		});
 
 		poller.poll("http://bridge.test/recruits", "secret", "Alice");
 
@@ -58,9 +64,15 @@ public class RemoteFeedPollerTest
 		OkHttpClient client = new OkHttpClient.Builder().addInterceptor(chain ->
 			response(chain, "{}"))
 			.build();
-		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values -> { }, values -> { },
+		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values ->
+		{
+		}, values ->
+		{
+		},
 			(lifecycle, value) -> statuses.add(value),
-			value -> { });
+			value ->
+			{
+			});
 
 		poller.poll("not a URL", "secret", "Alice");
 
@@ -72,8 +84,14 @@ public class RemoteFeedPollerTest
 	public void statusCarriesLifecycleSuppliedByItsPoll()
 	{
 		List<Long> lifecycles = new ArrayList<>();
-		RemoteFeedPoller poller = new RemoteFeedPoller(new OkHttpClient(), new Gson(), values -> { }, values -> { },
-			(lifecycle, online) -> lifecycles.add(lifecycle), value -> { });
+		RemoteFeedPoller poller = new RemoteFeedPoller(new OkHttpClient(), new Gson(), values ->
+		{
+		}, values ->
+		{
+		},
+			(lifecycle, online) -> lifecycles.add(lifecycle), value ->
+			{
+			});
 
 		poller.poll("not a URL", "secret", "Alice", poller.pollRequestGeneration(), 42L);
 
@@ -97,8 +115,16 @@ public class RemoteFeedPollerTest
 			active.decrementAndGet();
 			return response(chain, "{}");
 		}).build();
-		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values -> { }, values -> { }, (lifecycle, value) -> { },
-			value -> { });
+		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values ->
+		{
+		}, values ->
+		{
+		}, (lifecycle, value) ->
+		{
+		},
+			value ->
+			{
+			});
 
 		poller.poll("http://bridge.test/recruits", "secret", "Alice");
 		poller.poll("http://bridge.test/recruits", "secret", "Alice");
@@ -118,8 +144,16 @@ public class RemoteFeedPollerTest
 			requests.incrementAndGet();
 			return response(chain, "{}");
 		}).build();
-		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values -> { }, values -> { }, (lifecycle, value) -> { },
-			value -> { });
+		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values ->
+		{
+		}, values ->
+		{
+		}, (lifecycle, value) ->
+		{
+		},
+			value ->
+			{
+			});
 		long pollRequestGeneration = poller.pollRequestGeneration();
 
 		poller.cancel();
@@ -157,7 +191,11 @@ public class RemoteFeedPollerTest
 			return response(chain, "{\"entries\":[]}");
 		}).build();
 		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values -> entries.incrementAndGet(),
-			values -> { }, (lifecycle, value) -> status.countDown(), value -> { });
+			values ->
+			{
+			}, (lifecycle, value) -> status.countDown(), value ->
+			{
+			});
 
 		poller.poll("http://bridge.test/recruits", "secret", "Alice");
 		assertTrue(entered.await(5, TimeUnit.SECONDS));
@@ -180,12 +218,18 @@ public class RemoteFeedPollerTest
 		OkHttpClient client = new OkHttpClient.Builder().addInterceptor(chain ->
 			response(chain, "{\"entries\":[]}"))
 			.build();
-		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values -> { }, values -> { }, (lifecycle, value) ->
+		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values ->
+		{
+		}, values ->
+		{
+		}, (lifecycle, value) ->
 		{
 			publicationStarted.countDown();
 			awaitUnchecked(releasePublication);
 			publicationFinished.countDown();
-		}, value -> { });
+		}, value ->
+		{
+		});
 		ExecutorService cancelExecutor = Executors.newSingleThreadExecutor();
 		Future<?> cancellation = null;
 		try
@@ -280,7 +324,9 @@ public class RemoteFeedPollerTest
 		Method hostRaid = WeDoRaidsPlugin.class.getDeclaredMethod("hostRaid", java.util.Map.class,
 			java.util.function.Consumer.class);
 		hostRaid.setAccessible(true);
-		hostRaid.invoke(plugin, Collections.emptyMap(), (java.util.function.Consumer<String>) value -> { });
+		hostRaid.invoke(plugin, Collections.emptyMap(), (java.util.function.Consumer<String>) value ->
+		{
+		});
 	}
 
 	private static void setField(Object target, String name, Object value)

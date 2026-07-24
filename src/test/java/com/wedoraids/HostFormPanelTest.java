@@ -100,7 +100,11 @@ public class HostFormPanelTest
 	private static HostFormPanel newPanel(FakeActions actions)
 	{
 		return new HostFormPanel(new HostDependencies(actions, () -> 0, () -> "", () -> "tester", raid -> -1,
-			() -> { }, () -> { }, () -> false, world -> null));
+			() ->
+			{
+			}, () ->
+			{
+			}, () -> false, world -> null));
 	}
 
 	private static void enterLive(HostFormPanel panel, String spots, String roles)

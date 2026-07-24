@@ -31,8 +31,16 @@ final class LifecyclePluginFixtures
 		WeDoRaidsPlugin plugin = new WeDoRaidsPlugin();
 		setField(plugin, "config", config);
 		setField(plugin, "executor", executor);
-		RemoteFeedPoller poller = new RemoteFeedPoller(new okhttp3.OkHttpClient(), new Gson(), values -> { },
-			values -> { }, (lifecycle, value) -> { }, value -> { })
+		RemoteFeedPoller poller = new RemoteFeedPoller(new okhttp3.OkHttpClient(), new Gson(), values ->
+		{
+		},
+			values ->
+			{
+			}, (lifecycle, value) ->
+			{
+			}, value ->
+			{
+			})
 		{
 			@Override
 			void poll(String url, String key, String viewer, long pollRequestGeneration, long lifecycle)

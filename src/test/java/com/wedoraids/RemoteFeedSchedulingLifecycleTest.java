@@ -136,9 +136,15 @@ public class RemoteFeedSchedulingLifecycleTest
 					throw new AssertionError(e);
 				}
 			};
-			RemoteFeedPoller poller = new RemoteFeedPoller(new OkHttpClient(), new Gson(), values -> { },
-				values -> { }, (lifecycle, online) ->
-					bridgeStatusListener.onBridgeStatus(lifecycle, online), value -> { })
+			RemoteFeedPoller poller = new RemoteFeedPoller(new OkHttpClient(), new Gson(), values ->
+			{
+			},
+				values ->
+				{
+				}, (lifecycle, online) ->
+					bridgeStatusListener.onBridgeStatus(lifecycle, online), value ->
+					{
+					})
 			{
 				@Override
 				void poll(String url, String key, String viewer, long requestGeneration, long lifecycle)
@@ -149,7 +155,9 @@ public class RemoteFeedSchedulingLifecycleTest
 			setField(plugin, "remoteFeedPoller", poller);
 
 			invoke(plugin, "rescheduleRemoteFeed");
-			SwingUtilities.invokeAndWait(() -> { });
+			SwingUtilities.invokeAndWait(() ->
+			{
+			});
 
 			assertEquals(Arrays.asList(BridgeStatus.CONNECTING, BridgeStatus.ONLINE), panels[0].statuses);
 		}
@@ -186,12 +194,16 @@ public class RemoteFeedSchedulingLifecycleTest
 			invokeBridgeStatus(plugin, BridgeStatus.ONLINE, 7L);
 			setField(plugin, "feedScheduleGeneration", 8L);
 			releaseEdt.countDown();
-			SwingUtilities.invokeAndWait(() -> { });
+			SwingUtilities.invokeAndWait(() ->
+			{
+			});
 
 			assertTrue("a stale lifecycle status reached the panel", panel.statuses.isEmpty());
 
 			invokeBridgeStatus(plugin, BridgeStatus.OFFLINE, 8L);
-			SwingUtilities.invokeAndWait(() -> { });
+			SwingUtilities.invokeAndWait(() ->
+			{
+			});
 
 			assertEquals(Arrays.asList(BridgeStatus.OFFLINE), panel.statuses);
 		}
