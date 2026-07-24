@@ -22,34 +22,50 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.wedoraids;
+package com.wedoraids.feed;
 
-import com.wedoraids.feed.RaidType;
-import com.wedoraids.feed.RecruitEntry;
-import static com.wedoraids.LifecyclePluginFixtures.feedConfig;
-import static com.wedoraids.LifecyclePluginFixtures.invoke;
-import static com.wedoraids.LifecyclePluginFixtures.setField;
 import static org.junit.Assert.assertEquals;
 
-import com.wedoraids.LifecyclePluginFixtures.RecordingNotificationPlugin;
-import java.time.Instant;
-import java.util.Arrays;
 import org.junit.Test;
 
-public class FeedAcceptanceTest
+public class RecruitDisplayTest
 {
 	@Test
-	public void duplicateRawEntriesOnlyAttemptOneNotificationPerPayload()
-		throws Exception
+	public void firstInt_returnsZero_whenValueExceedsIntegerRange()
 	{
-		RecordingNotificationPlugin plugin = new RecordingNotificationPlugin();
-		setField(plugin, "config", feedConfig());
-		setField(plugin, "localVerified", true);
-		RecruitEntry entry = new RecruitEntry("Alice", "WDR", RaidType.TOB, null, null, null, null, null,
-			301, null, null, 0, "RAID", "fresh raid", Instant.now());
-
-		invoke(plugin, "acceptEntries", Arrays.asList(entry, entry));
-
-		assertEquals(1, plugin.notificationCount.get());
+		assertEquals(0, RecruitDisplay.firstInt("2147483648"));
 	}
+
+	@Test
+	public void firstInt_returnsZero_whenDigitRunIsMuchLongerThanIntegerRange()
+	{
+		assertEquals(0, RecruitDisplay.firstInt("999999999999999999999999999999999999999999999999999"));
+	}
+
+	@Test
+	public void firstInt_returnsFirstEmbeddedInteger_whenValueFits()
+	{
+		assertEquals(350, RecruitDisplay.firstInt("ToA 350 invo"));
+	}
+
+	@Test
+	public void teamTotal_returnsNamedAndNumericPartySizes()
+	{
+		assertEquals(3, RecruitDisplay.teamTotal("trio"));
+		assertEquals(5, RecruitDisplay.teamTotal("5 man"));
+	}
+
+	@Test
+	public void firstInt_returnsUnicodeDecimalNumber_whenTextUsesNonAsciiDigits()
+	{
+		assertEquals(3, RecruitDisplay.firstInt("team \u0663"));
+	}
+
+	@Test
+	public void wdrTierNumber_returnsHighestApplicableTier()
+	{
+		assertEquals("T5", RecruitDisplay.wdrTierNumber(RaidType.COX, 500));
+		assertEquals("T1", RecruitDisplay.wdrTierNumber(RaidType.TOB, 1));
+	}
+
 }

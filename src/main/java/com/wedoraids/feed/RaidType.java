@@ -22,34 +22,42 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.wedoraids;
+package com.wedoraids.feed;
 
-import com.wedoraids.feed.RaidType;
-import com.wedoraids.feed.RecruitEntry;
-import static com.wedoraids.LifecyclePluginFixtures.feedConfig;
-import static com.wedoraids.LifecyclePluginFixtures.invoke;
-import static com.wedoraids.LifecyclePluginFixtures.setField;
-import static org.junit.Assert.assertEquals;
+import java.awt.Color;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
-import com.wedoraids.LifecyclePluginFixtures.RecordingNotificationPlugin;
-import java.time.Instant;
-import java.util.Arrays;
-import org.junit.Test;
-
-public class FeedAcceptanceTest
+@Getter
+@RequiredArgsConstructor
+public enum RaidType
 {
-	@Test
-	public void duplicateRawEntriesOnlyAttemptOneNotificationPerPayload()
-		throws Exception
+	TOB("ToB", new Color(183, 105, 240),
+		new String[]{"Learner", "Standard", "Advanced", "Efficient", "HM", "HM Exp"},
+		new int[]{0, 10, 100, 100, 100, 100}),
+	COX("CoX", new Color(102, 187, 106),
+		new String[]{"Learner", "Unscaled", "Scaled", "Experienced", "CM", "FFA", "FFA CM", "CM Efficiency"},
+		new int[]{0, 5, 25, 75, 75, 25, 75, 500}),
+	TOA("ToA", new Color(255, 183, 77),
+		new String[]{"0-295", "300-445", "450+", "FFA"},
+		new int[]{0, 5, 5, 5}),
+	OTHER("Raid", Color.LIGHT_GRAY, new String[]{}, new int[]{});
+
+	private final String displayName;
+	private final Color color;
+	private final String[] tiers;
+	private final int[] minKcs;
+
+	/** Raid KC required to host in a given tier (0 if unknown). */
+	public int minKc(String tier)
 	{
-		RecordingNotificationPlugin plugin = new RecordingNotificationPlugin();
-		setField(plugin, "config", feedConfig());
-		setField(plugin, "localVerified", true);
-		RecruitEntry entry = new RecruitEntry("Alice", "WDR", RaidType.TOB, null, null, null, null, null,
-			301, null, null, 0, "RAID", "fresh raid", Instant.now());
-
-		invoke(plugin, "acceptEntries", Arrays.asList(entry, entry));
-
-		assertEquals(1, plugin.notificationCount.get());
+		for (int i = 0; i < tiers.length; i++)
+		{
+			if (tiers[i].equalsIgnoreCase(tier))
+			{
+				return i < minKcs.length ? minKcs[i] : 0;
+			}
+		}
+		return 0;
 	}
 }

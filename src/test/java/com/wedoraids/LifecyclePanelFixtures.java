@@ -24,6 +24,11 @@
  */
 package com.wedoraids;
 
+import com.wedoraids.bridge.BridgeStatus;
+import com.wedoraids.host.HostDependencies;
+import com.wedoraids.host.HostFormPanel;
+import com.wedoraids.panel.PanelDependencies;
+import com.wedoraids.panel.WeDoRaidsPanel;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
@@ -85,7 +90,7 @@ final class LifecyclePanelFixtures
 		}
 
 		@Override
-		void setBridgeStatus(BridgeStatus status)
+		public void setBridgeStatus(BridgeStatus status)
 		{
 			super.setBridgeStatus(status);
 			statuses.add(status);

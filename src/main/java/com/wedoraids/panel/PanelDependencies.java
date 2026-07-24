@@ -22,34 +22,45 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.wedoraids;
+package com.wedoraids.panel;
 
-import com.wedoraids.feed.RaidType;
-import com.wedoraids.feed.RecruitEntry;
-import static com.wedoraids.LifecyclePluginFixtures.feedConfig;
-import static com.wedoraids.LifecyclePluginFixtures.invoke;
-import static com.wedoraids.LifecyclePluginFixtures.setField;
-import static org.junit.Assert.assertEquals;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
-import com.wedoraids.LifecyclePluginFixtures.RecordingNotificationPlugin;
-import java.time.Instant;
-import java.util.Arrays;
-import org.junit.Test;
-
-public class FeedAcceptanceTest
+public final class PanelDependencies
 {
-	@Test
-	public void duplicateRawEntriesOnlyAttemptOneNotificationPerPayload()
-		throws Exception
+	private final BiConsumer<String, String> saveFilter;
+	private final IntConsumer onHopWorld;
+	private final Consumer<String> onJoinHub;
+	private final Runnable onRefresh;
+
+	public PanelDependencies(BiConsumer<String, String> saveFilter, IntConsumer onHopWorld,
+		Consumer<String> onJoinHub, Runnable onRefresh)
 	{
-		RecordingNotificationPlugin plugin = new RecordingNotificationPlugin();
-		setField(plugin, "config", feedConfig());
-		setField(plugin, "localVerified", true);
-		RecruitEntry entry = new RecruitEntry("Alice", "WDR", RaidType.TOB, null, null, null, null, null,
-			301, null, null, 0, "RAID", "fresh raid", Instant.now());
+		this.saveFilter = saveFilter;
+		this.onHopWorld = onHopWorld;
+		this.onJoinHub = onJoinHub;
+		this.onRefresh = onRefresh;
+	}
 
-		invoke(plugin, "acceptEntries", Arrays.asList(entry, entry));
+	BiConsumer<String, String> saveFilter()
+	{
+		return saveFilter;
+	}
 
-		assertEquals(1, plugin.notificationCount.get());
+	IntConsumer onHopWorld()
+	{
+		return onHopWorld;
+	}
+
+	Consumer<String> onJoinHub()
+	{
+		return onJoinHub;
+	}
+
+	Runnable onRefresh()
+	{
+		return onRefresh;
 	}
 }

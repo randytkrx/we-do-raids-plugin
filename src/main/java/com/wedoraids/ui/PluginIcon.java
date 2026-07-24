@@ -22,34 +22,47 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.wedoraids;
+package com.wedoraids.ui;
 
 import com.wedoraids.feed.RaidType;
-import com.wedoraids.feed.RecruitEntry;
-import static com.wedoraids.LifecyclePluginFixtures.feedConfig;
-import static com.wedoraids.LifecyclePluginFixtures.invoke;
-import static com.wedoraids.LifecyclePluginFixtures.setField;
-import static org.junit.Assert.assertEquals;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.util.ImageUtil;
 
-import com.wedoraids.LifecyclePluginFixtures.RecordingNotificationPlugin;
-import java.time.Instant;
-import java.util.Arrays;
-import org.junit.Test;
-
-public class FeedAcceptanceTest
+@Slf4j
+public final class PluginIcon
 {
-	@Test
-	public void duplicateRawEntriesOnlyAttemptOneNotificationPerPayload()
-		throws Exception
+	private PluginIcon()
 	{
-		RecordingNotificationPlugin plugin = new RecordingNotificationPlugin();
-		setField(plugin, "config", feedConfig());
-		setField(plugin, "localVerified", true);
-		RecruitEntry entry = new RecruitEntry("Alice", "WDR", RaidType.TOB, null, null, null, null, null,
-			301, null, null, 0, "RAID", "fresh raid", Instant.now());
+	}
 
-		invoke(plugin, "acceptEntries", Arrays.asList(entry, entry));
+	public static BufferedImage load(Class<?> resourceClass)
+	{
+		try
+		{
+			return ImageUtil.loadImageResource(resourceClass, "wdr.png");
+		}
+		catch (RuntimeException exception)
+		{
+			log.debug("We Do Raids: wdr.png resource missing, using drawn fallback", exception);
+			return draw();
+		}
+	}
 
-		assertEquals(1, plugin.notificationCount.get());
+	private static BufferedImage draw()
+	{
+		final BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D graphics = image.createGraphics();
+		graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		graphics.setColor(RaidType.TOB.getColor());
+		graphics.fillOval(0, 1, 7, 7);
+		graphics.setColor(RaidType.COX.getColor());
+		graphics.fillOval(9, 1, 7, 7);
+		graphics.setColor(RaidType.TOA.getColor());
+		graphics.fillOval(4, 8, 7, 7);
+		graphics.dispose();
+		return image;
 	}
 }

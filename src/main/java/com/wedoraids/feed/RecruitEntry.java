@@ -22,34 +22,50 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.wedoraids;
+package com.wedoraids.feed;
 
-import com.wedoraids.feed.RaidType;
-import com.wedoraids.feed.RecruitEntry;
-import static com.wedoraids.LifecyclePluginFixtures.feedConfig;
-import static com.wedoraids.LifecyclePluginFixtures.invoke;
-import static com.wedoraids.LifecyclePluginFixtures.setField;
-import static org.junit.Assert.assertEquals;
-
-import com.wedoraids.LifecyclePluginFixtures.RecordingNotificationPlugin;
 import java.time.Instant;
-import java.util.Arrays;
-import org.junit.Test;
+import javax.annotation.Nullable;
+import lombok.Value;
 
-public class FeedAcceptanceTest
+/**
+ * A normalized bridge/demo recruitment domain record.
+ */
+@Value
+public class RecruitEntry
 {
-	@Test
-	public void duplicateRawEntriesOnlyAttemptOneNotificationPerPayload()
-		throws Exception
-	{
-		RecordingNotificationPlugin plugin = new RecordingNotificationPlugin();
-		setField(plugin, "config", feedConfig());
-		setField(plugin, "localVerified", true);
-		RecruitEntry entry = new RecruitEntry("Alice", "WDR", RaidType.TOB, null, null, null, null, null,
-			301, null, null, 0, "RAID", "fresh raid", Instant.now());
-
-		invoke(plugin, "acceptEntries", Arrays.asList(entry, entry));
-
-		assertEquals(1, plugin.notificationCount.get());
-	}
+	/** Poster's RuneScape name. */
+	String sender;
+	/** Where the message came from: FC, CC, Guest CC, Public, or a Discord channel label. */
+	String source;
+	RaidType raidType;
+	/** WDR experience tier (KC-gated), e.g. Learner/Standard/Advanced/Efficient/FFA/HM/HM Exp. */
+	@Nullable
+	String tier;
+	/** Mode qualifier such as HM, CM, Entry, a ToA invocation ("350 invo"), "kit", or "remnant". */
+	@Nullable
+	String mode;
+	/** Open spots like "+2", if the message contained one. */
+	@Nullable
+	String spots;
+	/** Roles wanted/offered, e.g. "mdps/rdps" or "nfrz", if any. */
+	@Nullable
+	String roles;
+	/** Party fill like "3/5", or a "duo"/"trio" qualifier. */
+	@Nullable
+	String partySize;
+	/** World number, or 0 if none was mentioned. */
+	int world;
+	/** Region hint such as "eu"/"usw", if any. */
+	@Nullable
+	String region;
+	/** Party-hub passphrase for joiners, distinct from the poster RuneScape name ({@code sender}). */
+	@Nullable
+	String host;
+	/** Poster's highest raid KC for this raid (from OSRS hiscores), or 0 if unknown. */
+	int kc;
+	/** Classification: RAID (advert), LFG (looking), ROLE (offer), or JOIN (coming). */
+	String kind;
+	String message;
+	Instant timestamp;
 }
