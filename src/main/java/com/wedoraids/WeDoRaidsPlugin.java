@@ -141,6 +141,12 @@ public class WeDoRaidsPlugin extends Plugin
 
 	/** Local player's RSN, or null when logged out; identifies bridge requests. */
 	private volatile String localPlayerName;
+	/**
+	 * RSN that owns the currently live hosted post, or null if none is live. The post outlives a
+	 * logout so the host can log back in and still update or close it; it is dropped when a
+	 * different account logs in, so one account never inherits another's post.
+	 */
+	private volatile String hostLiveOwner;
 	/** The world the player is currently on, or 0 when logged out. */
 	private volatile int currentWorld;
 	/** Latest scouted CoX layout (non-CM only; the raids plugin never scouts CM). */
@@ -249,7 +255,8 @@ public class WeDoRaidsPlugin extends Plugin
 			}
 			remoteFeedPoller = null;
 		}
-		queueIdentityPanelReset(generation);
+		hostLiveOwner = null;
+		queueIdentityPanelReset(generation, true);
 		if (boardOverlay != null)
 		{
 			overlayManager.remove(boardOverlay);
@@ -550,7 +557,9 @@ public class WeDoRaidsPlugin extends Plugin
 				generation = resetIdentityFeedStateLocked();
 			}
 		}
-		queueIdentityPanelReset(generation);
+		// Key change or demo toggle: the WDR identity behind the post changed, so drop it.
+		hostLiveOwner = null;
+		queueIdentityPanelReset(generation, true);
 	}
 
 	private long resetIdentityFeedStateLocked()
@@ -568,11 +577,19 @@ public class WeDoRaidsPlugin extends Plugin
 		return generation;
 	}
 
-	private void queueIdentityPanelReset(long generation)
+	/**
+	 * Clears identity-scoped panel state. {@code dropLivePost} is false for a plain logout, so a
+	 * hosted post survives until the same account logs back in; it is true when a different
+	 * account takes over, so the new account never sees the previous one's post.
+	 */
+	private void queueIdentityPanelReset(long generation, boolean dropLivePost)
 	{
 		runOnPanel(generation, p ->
 		{
-			p.exitHostLive();
+			if (dropLivePost)
+			{
+				p.exitHostLive();
+			}
 			p.setBanned(false);
 			p.setVerified(false);
 			p.setEntries(java.util.Collections.emptyList());
@@ -644,7 +661,16 @@ public class WeDoRaidsPlugin extends Plugin
 				localPlayerName = normalized;
 			}
 		}
-		queueIdentityPanelReset(generation);
+		// Keep a live hosted post only for the account that created it: logging out leaves it
+		// intact (normalized == null), logging back in on the same account keeps it, and any
+		// other account clears it.
+		final String liveOwner = hostLiveOwner;
+		final boolean dropLivePost = liveOwner != null && normalized != null && !liveOwner.equals(normalized);
+		if (dropLivePost)
+		{
+			hostLiveOwner = null;
+		}
+		queueIdentityPanelReset(generation, dropLivePost);
 		runOnPanel(generation, p -> p.setLoggedIn(normalized != null));
 		if (normalized == null)
 		{
@@ -673,7 +699,8 @@ public class WeDoRaidsPlugin extends Plugin
 					localPlayerName = null;
 				}
 			}
-			queueIdentityPanelReset(generation);
+			// Logout keeps any live hosted post so the host can log back in and still close it.
+			queueIdentityPanelReset(generation, false);
 			runOnPanel(generation, p -> p.setLoggedIn(false));
 		}
 		else if (event.getGameState() == GameState.LOGGED_IN)
@@ -986,6 +1013,7 @@ public class WeDoRaidsPlugin extends Plugin
 		{
 			if (result.messageId != null)
 			{
+				hostLiveOwner = localPlayerName;
 				runOnPanel(generation, p -> p.enterHostLive(result.messageId));
 			}
 			// Auto party hub: create the RuneLite party for the posted passphrase so
@@ -1012,7 +1040,11 @@ public class WeDoRaidsPlugin extends Plugin
 	private void closePost(java.util.Map<String, String> fields, java.util.function.Consumer<String> status)
 	{
 		postAction("close", fields, "Closed", status,
-			(generation, result) -> runOnPanel(generation, WeDoRaidsPanel::exitHostLive));
+			(generation, result) ->
+			{
+				hostLiveOwner = null;
+				runOnPanel(generation, WeDoRaidsPanel::exitHostLive);
+			});
 	}
 
 	/** Starts a host/update/close action on the EDT; bridge callbacks are asynchronous. */
