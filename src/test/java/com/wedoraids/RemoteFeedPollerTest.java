@@ -1,12 +1,12 @@
 package com.wedoraids;
 
+import static com.wedoraids.LifecyclePluginFixtures.setField;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.google.gson.Gson;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -18,6 +18,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import okhttp3.EventListener;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -28,6 +29,16 @@ import org.junit.Test;
 
 public class RemoteFeedPollerTest
 {
+	private static final Consumer<List<RecruitEntry>> IGNORE_ENTRIES = values ->
+	{
+	};
+	private static final Consumer<Boolean> IGNORE_BOOLEAN = value ->
+	{
+	};
+	private static final BridgeStatusListener IGNORE_STATUS = (lifecycle, value) ->
+	{
+	};
+
 	@Test
 	public void malformedResponseReportsOffline()
 		throws Exception
@@ -38,17 +49,12 @@ public class RemoteFeedPollerTest
 		{
 			return response(chain, "not json");
 		}).build();
-		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values ->
-		{
-		}, values ->
-		{
-		}, (lifecycle, value) ->
+		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), IGNORE_ENTRIES, IGNORE_BOOLEAN,
+			(lifecycle, value) ->
 		{
 			statuses.add(value);
 			completed.countDown();
-		}, value ->
-		{
-		});
+		}, IGNORE_BOOLEAN);
 
 		poll(poller, "http://bridge.test/recruits");
 
@@ -64,15 +70,8 @@ public class RemoteFeedPollerTest
 		OkHttpClient client = new OkHttpClient.Builder().addInterceptor(chain ->
 			response(chain, "{}"))
 			.build();
-		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values ->
-		{
-		}, values ->
-		{
-		},
-			(lifecycle, value) -> statuses.add(value),
-			value ->
-			{
-			});
+		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), IGNORE_ENTRIES, IGNORE_BOOLEAN,
+			(lifecycle, value) -> statuses.add(value), IGNORE_BOOLEAN);
 
 		poll(poller, "not a URL");
 
@@ -84,14 +83,8 @@ public class RemoteFeedPollerTest
 	public void statusCarriesLifecycleSuppliedByItsPoll()
 	{
 		List<Long> lifecycles = new ArrayList<>();
-		RemoteFeedPoller poller = new RemoteFeedPoller(new OkHttpClient(), new Gson(), values ->
-		{
-		}, values ->
-		{
-		},
-			(lifecycle, online) -> lifecycles.add(lifecycle), value ->
-			{
-			});
+		RemoteFeedPoller poller = new RemoteFeedPoller(new OkHttpClient(), new Gson(), IGNORE_ENTRIES,
+			IGNORE_BOOLEAN, (lifecycle, online) -> lifecycles.add(lifecycle), IGNORE_BOOLEAN);
 
 		poller.poll("not a URL", "secret", "Alice", poller.pollRequestGeneration(), 42L);
 
@@ -115,16 +108,8 @@ public class RemoteFeedPollerTest
 			active.decrementAndGet();
 			return response(chain, "{}");
 		}).build();
-		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values ->
-		{
-		}, values ->
-		{
-		}, (lifecycle, value) ->
-		{
-		},
-			value ->
-			{
-			});
+		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), IGNORE_ENTRIES, IGNORE_BOOLEAN,
+			IGNORE_STATUS, IGNORE_BOOLEAN);
 
 		poll(poller, "http://bridge.test/recruits");
 		poll(poller, "http://bridge.test/recruits");
@@ -144,16 +129,8 @@ public class RemoteFeedPollerTest
 			requests.incrementAndGet();
 			return response(chain, "{}");
 		}).build();
-		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values ->
-		{
-		}, values ->
-		{
-		}, (lifecycle, value) ->
-		{
-		},
-			value ->
-			{
-			});
+		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), IGNORE_ENTRIES, IGNORE_BOOLEAN,
+			IGNORE_STATUS, IGNORE_BOOLEAN);
 		long pollRequestGeneration = poller.pollRequestGeneration();
 
 		poller.cancel();
@@ -191,11 +168,7 @@ public class RemoteFeedPollerTest
 			return response(chain, "{\"entries\":[]}");
 		}).build();
 		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values -> entries.incrementAndGet(),
-			values ->
-			{
-			}, (lifecycle, value) -> status.countDown(), value ->
-			{
-			});
+			IGNORE_BOOLEAN, (lifecycle, value) -> status.countDown(), IGNORE_BOOLEAN);
 
 		poll(poller, "http://bridge.test/recruits");
 		assertTrue(entered.await(5, TimeUnit.SECONDS));
@@ -218,18 +191,13 @@ public class RemoteFeedPollerTest
 		OkHttpClient client = new OkHttpClient.Builder().addInterceptor(chain ->
 			response(chain, "{\"entries\":[]}"))
 			.build();
-		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), values ->
-		{
-		}, values ->
-		{
-		}, (lifecycle, value) ->
+		RemoteFeedPoller poller = new RemoteFeedPoller(client, new Gson(), IGNORE_ENTRIES, IGNORE_BOOLEAN,
+			(lifecycle, value) ->
 		{
 			publicationStarted.countDown();
 			awaitUnchecked(releasePublication);
 			publicationFinished.countDown();
-		}, value ->
-		{
-		});
+		}, IGNORE_BOOLEAN);
 		ExecutorService cancelExecutor = Executors.newSingleThreadExecutor();
 		Future<?> cancellation = null;
 		try
@@ -331,14 +299,6 @@ public class RemoteFeedPollerTest
 		hostRaid.invoke(plugin, Collections.emptyMap(), (java.util.function.Consumer<String>) value ->
 		{
 		});
-	}
-
-	private static void setField(Object target, String name, Object value)
-		throws Exception
-	{
-		Field field = target.getClass().getDeclaredField(name);
-		field.setAccessible(true);
-		field.set(target, value);
 	}
 
 	private static Response response(okhttp3.Interceptor.Chain chain, String body)
