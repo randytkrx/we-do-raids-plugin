@@ -24,6 +24,8 @@
  */
 package com.wedoraids;
 
+import com.wedoraids.host.HostFormPanel;
+import com.wedoraids.panel.WeDoRaidsPanel;
 import static com.wedoraids.LifecyclePanelFixtures.panel;
 import static com.wedoraids.LifecyclePluginFixtures.config;
 import static com.wedoraids.LifecyclePluginFixtures.field;

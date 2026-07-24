@@ -24,6 +24,9 @@
  */
 package com.wedoraids;
 
+import com.wedoraids.bridge.BridgeStatus;
+import com.wedoraids.bridge.RemoteFeedPoller;
+import com.wedoraids.bridge.RemoteFeedPoller.BridgeStatusListener;
 import static com.wedoraids.LifecycleExecutorFixtures.await;
 import static com.wedoraids.LifecycleWorldFixtures.awaitIgnoringInterrupt;
 import static com.wedoraids.LifecyclePluginFixtures.config;
@@ -171,7 +174,7 @@ public class RemoteFeedSchedulingLifecycleTest
 					})
 			{
 				@Override
-				void poll(String url, String key, String viewer, long requestGeneration, long lifecycle)
+				public void poll(String url, String key, String viewer, long requestGeneration, long lifecycle)
 				{
 					bridgeStatusListener.onBridgeStatus(lifecycle, true);
 				}

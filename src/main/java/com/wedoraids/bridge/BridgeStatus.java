@@ -22,34 +22,22 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.wedoraids;
+package com.wedoraids.bridge;
 
-import com.wedoraids.feed.RaidType;
-import com.wedoraids.feed.RecruitEntry;
-import static com.wedoraids.LifecyclePluginFixtures.feedConfig;
-import static com.wedoraids.LifecyclePluginFixtures.invoke;
-import static com.wedoraids.LifecyclePluginFixtures.setField;
-import static org.junit.Assert.assertEquals;
+import com.wedoraids.ui.WdrTheme;
+import java.awt.Color;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
-import com.wedoraids.LifecyclePluginFixtures.RecordingNotificationPlugin;
-import java.time.Instant;
-import java.util.Arrays;
-import org.junit.Test;
-
-public class FeedAcceptanceTest
+@Getter
+@RequiredArgsConstructor
+public enum BridgeStatus
 {
-	@Test
-	public void duplicateRawEntriesOnlyAttemptOneNotificationPerPayload()
-		throws Exception
-	{
-		RecordingNotificationPlugin plugin = new RecordingNotificationPlugin();
-		setField(plugin, "config", feedConfig());
-		setField(plugin, "localVerified", true);
-		RecruitEntry entry = new RecruitEntry("Alice", "WDR", RaidType.TOB, null, null, null, null, null,
-			301, null, null, 0, "RAID", "fresh raid", Instant.now());
+	OFF("Feed off", WdrTheme.TEXT_DIM),
+	CONNECTING("Connecting…", WdrTheme.TEXT_DIM),
+	ONLINE("Live", WdrTheme.GREEN),
+	OFFLINE("Offline", WdrTheme.ERROR);
 
-		invoke(plugin, "acceptEntries", Arrays.asList(entry, entry));
-
-		assertEquals(1, plugin.notificationCount.get());
-	}
+	private final String label;
+	private final Color color;
 }

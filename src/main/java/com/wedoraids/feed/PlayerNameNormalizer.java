@@ -22,34 +22,47 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.wedoraids;
+package com.wedoraids.feed;
 
-import com.wedoraids.feed.RaidType;
-import com.wedoraids.feed.RecruitEntry;
-import static com.wedoraids.LifecyclePluginFixtures.feedConfig;
-import static com.wedoraids.LifecyclePluginFixtures.invoke;
-import static com.wedoraids.LifecyclePluginFixtures.setField;
-import static org.junit.Assert.assertEquals;
-
-import com.wedoraids.LifecyclePluginFixtures.RecordingNotificationPlugin;
-import java.time.Instant;
-import java.util.Arrays;
-import org.junit.Test;
-
-public class FeedAcceptanceTest
+public final class PlayerNameNormalizer
 {
-	@Test
-	public void duplicateRawEntriesOnlyAttemptOneNotificationPerPayload()
-		throws Exception
+	private PlayerNameNormalizer()
 	{
-		RecordingNotificationPlugin plugin = new RecordingNotificationPlugin();
-		setField(plugin, "config", feedConfig());
-		setField(plugin, "localVerified", true);
-		RecruitEntry entry = new RecruitEntry("Alice", "WDR", RaidType.TOB, null, null, null, null, null,
-			301, null, null, 0, "RAID", "fresh raid", Instant.now());
+	}
 
-		invoke(plugin, "acceptEntries", Arrays.asList(entry, entry));
+	public static String normalize(String s)
+	{
+		if (s == null)
+		{
+			return "";
+		}
+		// NBSP appears in Jagex names; fold it to a regular space before comparing.
+		return stripTags(s).replace('\u00A0', ' ').toLowerCase().trim();
+	}
 
-		assertEquals(1, plugin.notificationCount.get());
+	private static String stripTags(String value)
+	{
+		StringBuilder stripped = null;
+		int copyFrom = 0;
+		int opening = value.indexOf('<');
+		while (opening >= 0)
+		{
+			final int closing = value.indexOf('>', opening + 1);
+			if (closing > opening + 1)
+			{
+				if (stripped == null)
+				{
+					stripped = new StringBuilder(value.length());
+				}
+				stripped.append(value, copyFrom, opening);
+				copyFrom = closing + 1;
+				opening = value.indexOf('<', copyFrom);
+			}
+			else
+			{
+				opening = value.indexOf('<', opening + 1);
+			}
+		}
+		return stripped == null ? value : stripped.append(value, copyFrom, value.length()).toString();
 	}
 }

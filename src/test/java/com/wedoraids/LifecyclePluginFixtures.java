@@ -24,6 +24,9 @@
  */
 package com.wedoraids;
 
+import com.wedoraids.bridge.BridgeStatus;
+import com.wedoraids.bridge.RemoteFeedPoller;
+import com.wedoraids.feed.RecruitEntry;
 import com.google.gson.Gson;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -35,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-final class LifecyclePluginFixtures
+public final class LifecyclePluginFixtures
 {
 	private LifecyclePluginFixtures()
 	{
@@ -67,7 +70,7 @@ final class LifecyclePluginFixtures
 			})
 		{
 			@Override
-			void poll(String url, String key, String viewer, long pollRequestGeneration, long lifecycle)
+			public void poll(String url, String key, String viewer, long pollRequestGeneration, long lifecycle)
 			{
 				if (pollRequestGeneration() == pollRequestGeneration)
 				{
@@ -221,7 +224,7 @@ final class LifecyclePluginFixtures
 		return field.get(target);
 	}
 
-	static void setField(Object target, String name, Object value)
+	public static void setField(Object target, String name, Object value)
 		throws Exception
 	{
 		Field field = declaredField(target.getClass(), name);
