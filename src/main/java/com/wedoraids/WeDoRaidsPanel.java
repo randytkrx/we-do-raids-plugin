@@ -60,6 +60,8 @@ class WeDoRaidsPanel extends PluginPanel
 	private final JComboBox<String> tierFilter = new JComboBox<>(new String[]{"All tiers"});
 	private final JLabel countLabel = new JLabel();
 	private final JLabel statusLabel = new JLabel();
+	/** Shown only while demo mode is on, so sample calls are never mistaken for live ones. */
+	private final JPanel demoBanner = buildDemoBanner();
 	private final BufferedImage logo = loadLogo();
 	private HostFormPanel hostForm;
 	private final java.util.function.BiConsumer<String, String> saveFilter;
@@ -93,6 +95,12 @@ class WeDoRaidsPanel extends PluginPanel
 		top.setOpaque(false);
 		top.add(buildHeader());
 		top.add(Box.createVerticalStrut(6));
+
+		// Demo mode replaces the live feed with samples, so say so plainly — nobody should
+		// mistake a sample call for a real team they can join.
+		demoBanner.setAlignmentX(Component.LEFT_ALIGNMENT);
+		top.add(demoBanner);
+		refreshDemoBanner();
 
 		// Host form sits up top, above the filters, so hosting is the first action.
 		hostForm = new HostFormPanel(hostDependencies);
@@ -384,6 +392,9 @@ class WeDoRaidsPanel extends PluginPanel
 	 */
 	void setEntries(List<RecruitEntry> newEntries)
 	{
+		// Every feed change (including toggling demo on or off) lands here, so the banner
+		// tracks the current mode without the plugin having to poke it.
+		refreshDemoBanner();
 		entries.clear();
 		if (!banned && verified && loggedIn)
 		{
@@ -741,6 +752,31 @@ class WeDoRaidsPanel extends PluginPanel
 	}
 
 	/** A themed empty/banned notice with the WDR logo, so the sidebar never looks blank. */
+	private static JPanel buildDemoBanner()
+	{
+		final JPanel banner = new JPanel(new BorderLayout());
+		banner.setBackground(WdrTheme.CARD);
+		banner.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createLineBorder(WdrTheme.ERROR),
+			BorderFactory.createEmptyBorder(5, 8, 5, 8)));
+
+		final JLabel label = new JLabel("DEMO MODE — sample calls, not live");
+		label.setForeground(WdrTheme.ERROR);
+		label.setFont(FontManager.getRunescapeSmallFont());
+		banner.add(label, BorderLayout.CENTER);
+		return banner;
+	}
+
+	/** Shows or hides the demo banner, and keeps it from eating layout space when hidden. */
+	private void refreshDemoBanner()
+	{
+		final boolean demo = config.demoData();
+		demoBanner.setVisible(demo);
+		demoBanner.setMaximumSize(demo
+			? new java.awt.Dimension(Integer.MAX_VALUE, demoBanner.getPreferredSize().height)
+			: new java.awt.Dimension(0, 0));
+	}
+
 	private JPanel buildNotice(String title, String description)
 	{
 		JPanel panel = new JPanel();
