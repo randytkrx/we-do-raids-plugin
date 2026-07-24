@@ -50,7 +50,7 @@ public class RemoteFeedPollerTest
 		{
 		});
 
-		poller.poll("http://bridge.test/recruits", "secret", "Alice");
+		poll(poller, "http://bridge.test/recruits");
 
 		assertTrue(completed.await(5, TimeUnit.SECONDS));
 		assertEquals(1, statuses.size());
@@ -74,7 +74,7 @@ public class RemoteFeedPollerTest
 			{
 			});
 
-		poller.poll("not a URL", "secret", "Alice");
+		poll(poller, "not a URL");
 
 		assertEquals(1, statuses.size());
 		assertFalse(statuses.get(0));
@@ -126,8 +126,8 @@ public class RemoteFeedPollerTest
 			{
 			});
 
-		poller.poll("http://bridge.test/recruits", "secret", "Alice");
-		poller.poll("http://bridge.test/recruits", "secret", "Alice");
+		poll(poller, "http://bridge.test/recruits");
+		poll(poller, "http://bridge.test/recruits");
 
 		assertTrue(entered.await(5, TimeUnit.SECONDS));
 		release.countDown();
@@ -197,7 +197,7 @@ public class RemoteFeedPollerTest
 			{
 			});
 
-		poller.poll("http://bridge.test/recruits", "secret", "Alice");
+		poll(poller, "http://bridge.test/recruits");
 		assertTrue(entered.await(5, TimeUnit.SECONDS));
 		poller.cancel();
 		release.countDown();
@@ -234,7 +234,7 @@ public class RemoteFeedPollerTest
 		Future<?> cancellation = null;
 		try
 		{
-			poller.poll("http://bridge.test/recruits", "secret", "Alice");
+			poll(poller, "http://bridge.test/recruits");
 			assertTrue(publicationStarted.await(5, TimeUnit.SECONDS));
 			long startingGeneration = poller.pollRequestGeneration();
 			cancellation = cancelExecutor.submit(() ->
@@ -318,6 +318,10 @@ public class RemoteFeedPollerTest
 		return plugin;
 	}
 
+	private static void poll(RemoteFeedPoller poller, String url)
+	{
+		poller.poll(url, "secret", "Alice", poller.pollRequestGeneration(), 0);
+	}
 	private static void invokeHost(WeDoRaidsPlugin plugin)
 		throws Exception
 	{
