@@ -4,6 +4,7 @@
  */
 plugins {
     id 'java'
+    id 'checkstyle'
 }
 
 repositories {
@@ -36,4 +37,9 @@ tasks.withType(JavaCompile) {
 java {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
+}
+
+checkstyle {
+    toolVersion = '8.3'
+    configDirectory = file('config/checkstyle')
 }
