@@ -26,27 +26,19 @@ package com.wedoraids;
 
 import com.google.gson.Gson;
 import com.google.inject.Provides;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
-import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Player;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
-import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.WorldService;
-import net.runelite.client.util.WorldUtil;
-import net.runelite.http.api.worlds.World;
 import net.runelite.http.api.worlds.WorldResult;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -54,26 +46,13 @@ import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.WorldsFetch;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.plugins.raids.Raid;
-import net.runelite.client.plugins.raids.RaidRoom;
-import net.runelite.client.plugins.raids.RoomType;
 import net.runelite.client.plugins.raids.events.RaidReset;
 import net.runelite.client.plugins.raids.events.RaidScouted;
-import net.runelite.client.plugins.raids.solver.Room;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
-import net.runelite.client.util.ImageUtil;
 import net.runelite.client.Notifier;
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.HttpUrl;
-import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
 
-@Slf4j
 @PluginDescriptor(
 	name = "We Do Raids",
 	description = "The official We Do Raids Discord plugin: find, join and host WDR raid recruitment (ToB/CoX/ToA) in-game",
@@ -81,7 +60,6 @@ import okhttp3.Response;
 )
 public class WeDoRaidsPlugin extends Plugin
 {
-	private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 	/** Default We Do Raids bridge; overridable via the advanced config for testing. */
 	private static final String DEFAULT_BRIDGE_URL = "https://wdr.timecapsule.ink/recruits";
 	/** Fixed feed refresh interval (seconds). Locked, not user-configurable. */
@@ -128,6 +106,10 @@ public class WeDoRaidsPlugin extends Plugin
 	private NavigationButton navButton;
 	private RaidBoardOverlay boardOverlay;
 	private RemoteFeedPoller remoteFeedPoller;
+	private BridgeClient bridgeClient;
+	private HostInteractionController hostInteractionController;
+	private RecruitmentCoordinator recruitmentCoordinator;
+	private WorldHopController worldHopController;
 	private ScheduledFuture<?> remoteFeedTask;
 	/** Owns feed task replacement; it may nest identityLock, never the reverse. */
 	private final Object feedLifecycleLock = new Object();
@@ -162,9 +144,6 @@ public class WeDoRaidsPlugin extends Plugin
 	private volatile int coxKc = -1;
 	private volatile int tobKc = -1;
 	private volatile int toaKc = -1;
-	/** Pending quick-hop target, processed on the next game tick. */
-	private net.runelite.api.World quickHopTarget;
-	private int quickHopAttempts;
 	@Provides
 	WeDoRaidsConfig provideConfig(ConfigManager configManager)
 	{
@@ -174,12 +153,13 @@ public class WeDoRaidsPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		worldHopController();
 		final HostFormPanel.HostActions hostActions = buildHostActions();
 		panel = buildPanel(hostActions);
 
 		navButton = NavigationButton.builder()
 			.tooltip("We Do Raids")
-			.icon(loadIcon())
+			.icon(PluginIcon.load(getClass()))
 			.priority(7)
 			.panel(panel)
 			.build();
@@ -318,37 +298,15 @@ public class WeDoRaidsPlugin extends Plugin
 			return;
 		}
 		final Instant now = Instant.now();
-		// Realistic samples drawn from real WDR dumps, with the fields the parser produces.
 		final java.util.List<RecruitEntry> demo = demoEntries;
 		demo.clear();
-		demo.add(demoEntry("Olm Enjoyer", "WDR ToB", RaidType.TOB, "Standard", null, "+2", "mdps/rdps", "trio", 447, null, "olm", "RAID", "trio w447 mdps/rdps +2 phub olm", now, 13, 84));
-		demo.add(demoEntry("Pogtank Pete", "WDR ToB", RaidType.TOB, "HM Exp", "100+ kc", "+1", "mdps", "5 man", 364, null, "hmt6", "RAID", "+1 mdps pogstack 100+kc phub hmt6 w364", now, 12, 412));
-		demo.add(demoEntry("Frozen Faz", "WDR ToB", RaidType.TOB, "Advanced", null, "+1", "frz", "trio", 489, null, "screen", "RAID", "+1 frz trio w489 scy pref ph screen", now, 11, 268));
-		demo.add(demoEntry("Rngesus Rex", "WDR ToB", RaidType.TOB, "Standard", null, "+1", "range", null, 507, null, null, "RAID", "507+1 range", now, 10, 61));
-		demo.add(demoEntry("Sanguine Sal", "WDR ToB", RaidType.TOB, "HM", "HM", "+2", "rdps/nfrz", null, 403, null, null, "RAID", "looking for 1 rdps 2 freeze w403", now, 9, 337));
-		demo.add(demoEntry("Prep School", "WDR CoX", RaidType.COX, "Scaled", "3+4", "+2", null, null, 0, null, null, "RAID", "c 3+4", now, 8, 143));
-		demo.add(demoEntry("Skip Steady", "WDR CoX", RaidType.COX, "FFA", "3+4", "+2", "melee", null, 0, null, null, "RAID", "+2 3+4 mele taken", now, 7, 512));
-		demo.add(demoEntry("Cm Chad", "WDR CoX", RaidType.COX, "FFA CM", "CM", "+1", null, null, 0, null, "Cm Chad", "RAID", "+1 fc: Cm Chad ffa C.M", now, 6, 806));
-		demo.add(demoEntry("Fresh Learner", "WDR CoX", RaidType.COX, "Learner", null, null, null, null, 0, null, null, "LFG", "LFG, new to raids never done any beside for the diary", now, 5, 3));
-		demo.add(demoEntry("Invo Andy", "WDR ToA", RaidType.TOA, "300-445", "400 invo split", null, null, null, 503, null, null, "LFG", "400 w503 split all", now, 4, 221));
-		demo.add(demoEntry("Kit Chaser", "WDR ToA", RaidType.TOA, "0-295", "200 invo", "+1", null, null, 362, null, null, "RAID", "200 +1 w362", now, 3, 47));
-		demo.add(demoEntry("Warden Wes", "WDR ToA", RaidType.TOA, "450+", "450-500 invo", "+1", null, "duo", 520, null, null, "RAID", "+1 duos 450-500s w520", now, 2, 690));
-		demo.add(demoEntry("Mog Hunter", "WDR ToA", RaidType.TOA, "450+", "450 invo kit", null, null, "trio", 0, null, null, "LFG", "any 450 duo/trio zebak transmog?", now, 1, 455));
-		demo.add(demoEntry("Nylo Nick", "WDR ToB", RaidType.TOB, "HM Exp", null, "+1", "nfrz", "5 man", 516, null, "nylo", "RAID", "+1 - nfrz - w516 (pogstack) - ph: nylo", now, 0, 158));
+		demo.addAll(DemoRecruitEntries.create(now));
 
 		setLocalBanned(false);
 		setLocalVerified(true);
 		runOnPanel(identityGeneration.get(), p -> p.setLoggedIn(true));
 		acceptEntries(java.util.Collections.emptyList());
 		rescheduleRemoteFeed();
-	}
-
-	private static RecruitEntry demoEntry(String sender, String source, RaidType raid, String tier,
-		String mode, String spots, String roles, String party, int world, String region, String host,
-		String kind, String message, Instant now, int minutesAgo, int kc)
-	{
-		return new RecruitEntry(sender, source, raid, tier, mode, spots, roles, party, world, region, host,
-			kc, kind, message, now.minus(Duration.ofMinutes(minutesAgo)));
 	}
 
 	/** The bridge to poll: the advanced override if set, else the built-in default. */
@@ -451,76 +409,27 @@ public class WeDoRaidsPlugin extends Plugin
 	/** Fetches the player's per-raid max KC from the bridge, then refreshes the host form. */
 	private void fetchKc()
 	{
-		// No key = not opted in, so never contact the bridge (and it'd return nothing anyway).
-		if (config.demoData() || config.remoteFeedKey().trim().isEmpty())
-		{
-			return;
-		}
-		final long generation;
-		final String viewer;
-		synchronized (identityLock)
-		{
-			generation = identityGeneration.get();
-			viewer = localPlayerName;
-		}
-		if (viewer == null)
-		{
-			return;
-		}
-		final String key = config.remoteFeedKey().trim();
-		final HttpUrl feed = HttpUrl.parse(bridgeUrl());
-		if (feed == null || feed.pathSize() == 0)
-		{
-			return;
-		}
-		final HttpUrl.Builder url = feed.newBuilder()
-			.setPathSegment(feed.pathSize() - 1, "kc")
-			.addQueryParameter("viewer", viewer)
-			.addQueryParameter("key", key);
-		okHttpClient.newCall(new Request.Builder().url(url.build()).build()).enqueue(new Callback()
-		{
-			@Override
-			public void onFailure(Call call, java.io.IOException e)
-			{
-				if (isCurrentIdentity(generation, viewer))
-				{
-					log.debug("We Do Raids: KC fetch failed", e);
-				}
-			}
-
-			@Override
-			public void onResponse(Call call, Response response)
-			{
-				try (Response r = response)
-				{
-					if (!isCurrentIdentity(generation, viewer))
-					{
-						return;
-					}
-					if (!r.isSuccessful() || r.body() == null)
-					{
-						return;
-					}
-					final KcResult k = gson.fromJson(r.body().charStream(), KcResult.class);
-					if (k != null && k.verified && commitKc(generation, viewer, k))
-					{
-						runOnPanel(generation, WeDoRaidsPanel::refreshHostTiers);
-					}
-				}
-				catch (Exception e)
-				{
-					log.debug("We Do Raids: bad KC response", e);
-				}
-			}
-		});
+		bridgeClient().fetchKc();
 	}
 
-	private static class KcResult
+	private BridgeClient bridgeClient()
 	{
-		boolean verified;
-		int cox;
-		int tob;
-		int toa;
+		if (bridgeClient == null)
+		{
+			bridgeClient = new BridgeClient(config, okHttpClient, gson, this::bridgeUrl,
+				this::identitySnapshot, identityGeneration::get, () -> localPlayerName,
+				() -> localBanned, () -> localVerified, this::isCurrentIdentity, this::commitKc,
+				generation -> runOnPanel(generation, WeDoRaidsPanel::refreshHostTiers));
+		}
+		return bridgeClient;
+	}
+
+	private BridgeClient.IdentitySnapshot identitySnapshot()
+	{
+		synchronized (identityLock)
+		{
+			return new BridgeClient.IdentitySnapshot(identityGeneration.get(), localPlayerName);
+		}
 	}
 
 	private void setBridgeStatus(BridgeStatus status, long lifecycle)
@@ -608,7 +517,7 @@ public class WeDoRaidsPlugin extends Plugin
 			&& java.util.Objects.equals(localPlayerName, viewer);
 	}
 
-	private boolean commitKc(long generation, String viewer, KcResult result)
+	private boolean commitKc(long generation, String viewer, BridgeClient.KcResult result)
 	{
 		synchronized (identityLock)
 		{
@@ -717,25 +626,7 @@ public class WeDoRaidsPlugin extends Plugin
 			setViewerName(local.getName());
 		}
 		currentWorld = client.getWorld();
-
-		// Drive a pending quick-hop, same flow the World Hopper uses.
-		if (quickHopTarget == null)
-		{
-			return;
-		}
-		if (client.getWidget(InterfaceID.Worldswitcher.BUTTONS) == null)
-		{
-			client.openWorldHopper();
-			if (++quickHopAttempts >= 20)
-			{
-				quickHopTarget = null;
-			}
-		}
-		else
-		{
-			client.hopToWorld(quickHopTarget);
-			quickHopTarget = null;
-		}
+		worldHopController().onGameTick();
 	}
 
 	@Subscribe
@@ -748,7 +639,7 @@ public class WeDoRaidsPlugin extends Plugin
 	public void onRaidScouted(RaidScouted event)
 	{
 		// The raids plugin only scouts non-CM raids, so this is inherently CM-free.
-		currentCoxLayout = buildLayoutString(event.getRaid());
+		currentCoxLayout = CoxLayoutFormatter.format(event.getRaid());
 		// Push the fresh layout into the host form so re-scouting a raid updates it.
 		runOnPanel(identityGeneration.get(), WeDoRaidsPanel::refreshCoxLayout);
 	}
@@ -760,81 +651,12 @@ public class WeDoRaidsPlugin extends Plugin
 	}
 
 	/**
-	 * Rebuilds the CoX plugin's own "[code]: rooms" layout string (the !layout format),
-	 * e.g. "[SCPFCSPCPF]: Vasa, Tekton, Tightrope, Vespula, Crabs". The code is what
-	 * experienced raiders read; the room names spell out the order for everyone else.
-	 */
-	private static String buildLayoutString(Raid raid)
-	{
-		if (raid == null || raid.getLayout() == null)
-		{
-			return null;
-		}
-		final StringBuilder rooms = new StringBuilder();
-		for (Room r : raid.getLayout().getRooms())
-		{
-			final RaidRoom room = raid.getRoom(r.getPosition());
-			if (room == null)
-			{
-				continue;
-			}
-			final RoomType type = room.getType();
-			if (type == RoomType.COMBAT || type == RoomType.PUZZLE)
-			{
-				if (rooms.length() > 0)
-				{
-					rooms.append(", ");
-				}
-				rooms.append(room.getName());
-			}
-		}
-		if (rooms.length() == 0)
-		{
-			return null;
-		}
-		return "[" + floorCode(raid) + "]: " + rooms;
-	}
-
-	/**
-	 * The layout code with its two floors split by " | " (e.g. "FSCCP | PCSCF").
-	 * toCode() brackets each floor as #...¤, so we split on the ¤ markers.
-	 */
-	private static String floorCode(Raid raid)
-	{
-		final StringBuilder sb = new StringBuilder();
-		for (String floor : raid.getLayout().toCode().split("¤"))
-		{
-			final String clean = floor.replace("#", "").trim();
-			if (clean.isEmpty())
-			{
-				continue;
-			}
-			if (sb.length() > 0)
-			{
-				sb.append(" | ");
-			}
-			sb.append(clean);
-		}
-		return sb.length() > 0 ? sb.toString() : raid.getLayout().toCodeString();
-	}
-
-	/**
 	 * The hosted raid has gone idle: desktop notification (toggleable) plus an in-game
 	 * chat line so it's visible even with the side panel closed.
 	 */
 	private void warnHostIdle()
 	{
-		notifier.notify(config.hostIdleNotify(),
-			"Your We Do Raids party is idle. Open the plugin and click \"I'm here\" or it will auto-close.");
-		clientThread.invokeLater(() ->
-		{
-			if (client.getGameState() == GameState.LOGGED_IN)
-			{
-				client.addChatMessage(net.runelite.api.ChatMessageType.CONSOLE, "",
-					"<col=e57373>We Do Raids:</col> your hosted party is idle, click \"I'm here\" in the "
-						+ "side panel within 60 seconds or it will auto-close.", null);
-			}
-		});
+		hostInteractionController().warnHostIdle();
 	}
 
 	/**
@@ -845,120 +667,28 @@ public class WeDoRaidsPlugin extends Plugin
 	 */
 	String worldBlockReason(int worldId)
 	{
-		final WorldResult worldResult = worldSnapshotCache.snapshot();
-		if (worldResult == null)
-		{
-			return null;
-		}
-		final World world = worldResult.findWorld(worldId);
-		if (world == null)
-		{
-			return "not a valid world";
-		}
-		return worldBlockReason(world);
-	}
-
-	private static String worldBlockReason(World world)
-	{
-		final java.util.EnumSet<net.runelite.http.api.worlds.WorldType> types = world.getTypes();
-		if (types.contains(net.runelite.http.api.worlds.WorldType.PVP))
-		{
-			return "a PvP world";
-		}
-		if (types.contains(net.runelite.http.api.worlds.WorldType.HIGH_RISK))
-		{
-			return "a High Risk world";
-		}
-		if (types.contains(net.runelite.http.api.worlds.WorldType.BOUNTY))
-		{
-			return "a Bounty Hunter world";
-		}
-		if (types.contains(net.runelite.http.api.worlds.WorldType.LAST_MAN_STANDING))
-		{
-			return "an LMS world";
-		}
-		if (types.contains(net.runelite.http.api.worlds.WorldType.DEADMAN))
-		{
-			return "a Deadman world";
-		}
-		if (types.contains(net.runelite.http.api.worlds.WorldType.PVP_ARENA))
-		{
-			return "a PvP Arena world";
-		}
-		if (types.contains(net.runelite.http.api.worlds.WorldType.TOURNAMENT))
-		{
-			return "a Tournament world";
-		}
-		if (types.contains(net.runelite.http.api.worlds.WorldType.SEASONAL))
-		{
-			return "a Leagues world";
-		}
-		if (types.contains(net.runelite.http.api.worlds.WorldType.QUEST_SPEEDRUNNING))
-		{
-			return "a Speedrunning world";
-		}
-		if (types.contains(net.runelite.http.api.worlds.WorldType.FRESH_START_WORLD))
-		{
-			return "a Fresh Start world";
-		}
-		return null;
+		return worldHopController().worldBlockReason(worldId);
 	}
 
 	/** Join a callout's party hub in the RuneLite Party plugin. Starts on the EDT. */
 	private void joinPartyHub(String hub)
 	{
-		if (hub == null || hub.trim().isEmpty())
-		{
-			return;
-		}
-		final String passphrase = hub.trim();
-		clientThread.invokeLater(() -> partyService.changeParty(passphrase));
+		hostInteractionController().joinPartyHub(hub);
 	}
 
 	/** Quick-hop to a world clicked in the panel. Called on the EDT. */
 	private void hopTo(int worldId)
 	{
-		if (worldId <= 0)
-		{
-			return;
-		}
-		final WorldResult worldResult = worldSnapshotCache.snapshot();
-		if (worldResult == null)
-		{
-			return;
-		}
-		final World world = worldResult.findWorld(worldId);
-		final String blockReason = world == null ? "not a valid world" : worldBlockReason(world);
-		if (blockReason != null)
-		{
-			clientThread.invokeLater(() ->
-			{
-				if (client.getGameState() == GameState.LOGGED_IN)
-				{
-					client.addChatMessage(net.runelite.api.ChatMessageType.CONSOLE, "",
-						"<col=e57373>We Do Raids:</col> not hopping to W" + worldId + ", it's " + blockReason + ".", null);
-				}
-			});
-			return;
-		}
-		clientThread.invoke(() ->
-		{
-			final net.runelite.api.World rsWorld = client.createWorld();
-			rsWorld.setActivity(world.getActivity());
-			rsWorld.setAddress(world.getAddress());
-			rsWorld.setId(world.getId());
-			rsWorld.setPlayerCount(world.getPlayers());
-			rsWorld.setLocation(world.getLocation());
-			rsWorld.setTypes(WorldUtil.toWorldTypes(world.getTypes()));
+		worldHopController().hopTo(worldId);
+	}
 
-			if (client.getGameState() == GameState.LOGIN_SCREEN)
-			{
-				client.changeWorld(rsWorld);
-				return;
-			}
-			quickHopTarget = rsWorld;
-			quickHopAttempts = 0;
-		});
+	private WorldHopController worldHopController()
+	{
+		if (worldHopController == null)
+		{
+			worldHopController = new WorldHopController(client, clientThread, worldSnapshotCache);
+		}
+		return worldHopController;
 	}
 
 	void startWorldCache()
@@ -1006,155 +736,28 @@ public class WeDoRaidsPlugin extends Plugin
 	 */
 	private void hostRaid(java.util.Map<String, String> fields, java.util.function.Consumer<String> status)
 	{
-		final String partyHub = fields.get("partyHub");
-		postAction("host", fields, "Posted to Discord", status, (generation, result) ->
-		{
-			if (result.messageId != null)
-			{
-				hostLiveOwner = localPlayerName;
-				runOnPanel(generation, p -> p.enterHostLive(result.messageId));
-			}
-			// Auto party hub: create the RuneLite party for the posted passphrase so
-			// joiners can hop in via the Party plugin. Never yanks you out of a party
-			// you're already in.
-			if (config.autoPartyHub() && partyHub != null && !partyHub.isEmpty())
-			{
-				clientThread.invokeLater(() ->
-				{
-					if (identityGeneration.get() == generation && !partyService.isInParty())
-					{
-						partyService.changeParty(partyHub);
-					}
-				});
-			}
-		});
+		hostInteractionController().hostRaid(fields, status);
 	}
 
 	private void updatePost(java.util.Map<String, String> fields, java.util.function.Consumer<String> status)
 	{
-		postAction("update", fields, "Updated", status, null);
+		hostInteractionController().updatePost(fields, status);
 	}
 
 	private void closePost(java.util.Map<String, String> fields, java.util.function.Consumer<String> status)
 	{
-		postAction("close", fields, "Closed", status,
-			(generation, result) ->
-			{
-				hostLiveOwner = null;
-				runOnPanel(generation, WeDoRaidsPanel::exitHostLive);
-			});
+		hostInteractionController().closePost(fields, status);
 	}
 
-	/** Starts a host/update/close action on the EDT; bridge callbacks are asynchronous. */
-	private void postAction(String endpoint, java.util.Map<String, String> fields, String okMessage,
-		java.util.function.Consumer<String> status,
-		java.util.function.BiConsumer<Long, HostResult> onOk)
+	private HostInteractionController hostInteractionController()
 	{
-		final long generation = identityGeneration.get();
-		final String viewer = localPlayerName;
-		final String key = config.remoteFeedKey().trim();
-		final java.util.function.Consumer<String> reply =
-			msg -> SwingUtilities.invokeLater(() ->
-			{
-				if (isCurrentIdentity(generation, viewer))
-				{
-					status.accept(msg);
-				}
-			});
-
-		if (localBanned)
+		if (hostInteractionController == null)
 		{
-			reply.accept("You are on the WDR ban list and cannot host.");
-			return;
+			hostInteractionController = new HostInteractionController(config, this::bridgeClient, client,
+				clientThread, notifier, partyService, identityGeneration::get, () -> localPlayerName,
+				owner -> hostLiveOwner = owner, this::runOnPanel);
 		}
-		if (viewer == null)
-		{
-			reply.accept("Log in first so we can post your IGN.");
-			return;
-		}
-		if (key.isEmpty())
-		{
-			reply.accept("Enter your WDR verification key first.");
-			return;
-		}
-		if (config.demoData())
-		{
-			reply.accept("Hosting is unavailable in demo mode.");
-			return;
-		}
-		if (!localVerified)
-		{
-			reply.accept("Your WDR account is not verified.");
-			return;
-		}
-		final HttpUrl feed = HttpUrl.parse(bridgeUrl());
-		if (feed == null || feed.pathSize() == 0)
-		{
-			reply.accept("Invalid feed URL.");
-			return;
-		}
-
-		final HttpUrl.Builder url = feed.newBuilder().setPathSegment(feed.pathSize() - 1, endpoint);
-		url.addQueryParameter("key", key);
-
-		final java.util.Map<String, String> body = new java.util.LinkedHashMap<>(fields);
-		body.put("ign", viewer);
-		body.put("viewer", viewer);
-
-		final Request request = new Request.Builder()
-			.url(url.build())
-			.post(RequestBody.create(JSON, gson.toJson(body)))
-			.build();
-
-		okHttpClient.newCall(request).enqueue(new Callback()
-		{
-			@Override
-			public void onFailure(Call call, java.io.IOException e)
-			{
-				reply.accept("Could not reach the bridge.");
-			}
-
-			@Override
-			public void onResponse(Call call, Response response)
-			{
-				try (Response r = response)
-				{
-					if (!isCurrentIdentity(generation, viewer))
-					{
-						return;
-					}
-					final HostResult result = r.body() != null
-						? gson.fromJson(r.body().charStream(), HostResult.class) : null;
-					if (r.isSuccessful() && result != null && result.ok)
-					{
-						reply.accept(okMessage);
-						if (onOk != null)
-						{
-							onOk.accept(generation, result);
-						}
-					}
-					else if (result != null && result.error != null)
-					{
-						reply.accept(result.error);
-					}
-					else
-					{
-						reply.accept("Failed (" + r.code() + ").");
-					}
-				}
-				catch (Exception e)
-				{
-					reply.accept("Failed: bad response.");
-				}
-			}
-		});
-	}
-
-	private static class HostResult
-	{
-		boolean ok;
-		String messageId;
-		String error;
+		return hostInteractionController;
 	}
 
 	private void cancelRemoteFeedLocked()
@@ -1171,53 +774,13 @@ public class WeDoRaidsPlugin extends Plugin
 		}
 	}
 
-	private boolean passesFilters(RecruitEntry entry)
-	{
-		return !localBanned
-			&& localVerified
-			&& raidEnabled(entry.getRaidType())
-			&& matchesKeywordFilter(entry.getMessage())
-			&& kindEnabled(entry.getKind())
-			&& matchesTierFilter(entry.getTier());
-	}
-
 	/**
 	 * Mirrors the bridge's full current feed into the panel each poll, so deleted or
 	 * closed raids disappear. Pings only for calls that are both new to us and fresh.
 	 */
 	private void acceptEntries(java.util.List<RecruitEntry> list)
 	{
-		final long generation = identityGeneration.get();
-		final FeedProjection projection = FeedProjection.project(list, demoEntries, this::passesFilters,
-			config.demoData());
-		final java.util.Set<String> current = new java.util.HashSet<>();
-		for (RecruitEntry e : projection.getNotifiableLiveEntries())
-		{
-			final String key = e.getSender() + '|' + e.getRaidType() + '|'
-				+ e.getTimestamp().toEpochMilli() + '|' + e.getMessage();
-			if (current.add(key) && !notifiedKeys.contains(key)
-				&& Duration.between(e.getTimestamp(), Instant.now()).toMinutes() < 2)
-			{
-				if (identityGeneration.get() == generation)
-				{
-					notifyRecruit(e);
-				}
-			}
-		}
-		if (identityGeneration.get() != generation)
-		{
-			return;
-		}
-		// Bound the set to what's currently open (re-appearing calls may ping again).
-		notifiedKeys.clear();
-		notifiedKeys.addAll(current);
-
-		activeTobHosts.clear();
-		activeTobHosts.addAll(projection.getTobHosts());
-		activeToaHosts.clear();
-		activeToaHosts.addAll(projection.getToaHosts());
-
-		runOnPanel(generation, p -> p.setEntries(projection.getEntries()));
+		recruitmentCoordinator().accept(list);
 	}
 
 	void notifyRecruit(RecruitEntry entry)
@@ -1225,98 +788,15 @@ public class WeDoRaidsPlugin extends Plugin
 		notifier.notify(config.notifyOnRecruit(), entry.getSender() + " is recruiting: " + entry.getMessage());
 	}
 
-	private boolean matchesTierFilter(String tier)
+	private RecruitmentCoordinator recruitmentCoordinator()
 	{
-		final String filter = config.tierFilter().trim();
-		if (filter.isEmpty())
+		if (recruitmentCoordinator == null)
 		{
-			return true;
+			recruitmentCoordinator = new RecruitmentCoordinator(config, demoEntries, notifiedKeys,
+				activeTobHosts, activeToaHosts, () -> localBanned, () -> localVerified,
+				identityGeneration::get, this::notifyRecruit, this::runOnPanel);
 		}
-		// Entries with no tier (in-game / untiered raids) always pass; only tiered
-		// entries are gated, so you can hide the WDR tiers above your KC.
-		if (tier == null)
-		{
-			return true;
-		}
-		for (String allowed : filter.split(","))
-		{
-			if (allowed.trim().equalsIgnoreCase(tier))
-			{
-				return true;
-			}
-		}
-		return false;
+		return recruitmentCoordinator;
 	}
 
-	private boolean kindEnabled(String kind)
-	{
-		// Only actionable adverts and LFG posts; bare joins / role offers are noise.
-		return "RAID".equals(kind) || "LFG".equals(kind);
-	}
-
-	private boolean raidEnabled(RaidType raidType)
-	{
-		switch (raidType)
-		{
-			case TOB:
-				return config.showTob();
-			case COX:
-				return config.showCox();
-			case TOA:
-				return config.showToa();
-			default:
-				return true;
-		}
-	}
-
-	private boolean matchesKeywordFilter(String message)
-	{
-		final String filter = config.keywordFilter().trim();
-		if (filter.isEmpty())
-		{
-			return true;
-		}
-
-		final String lower = message.toLowerCase();
-		for (String keyword : filter.split(","))
-		{
-			keyword = keyword.trim().toLowerCase();
-			if (!keyword.isEmpty() && lower.contains(keyword))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
-	/** Sidebar icon: the WDR logo, falling back to raid-colored dots if the resource is missing. */
-	private BufferedImage loadIcon()
-	{
-		try
-		{
-			return ImageUtil.loadImageResource(getClass(), "wdr.png");
-		}
-		catch (RuntimeException e)
-		{
-			log.debug("We Do Raids: wdr.png resource missing, using drawn fallback", e);
-			return drawnIcon();
-		}
-	}
-
-	private static BufferedImage drawnIcon()
-	{
-		BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
-		Graphics2D g = image.createGraphics();
-		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-		g.setColor(RaidType.TOB.getColor());
-		g.fillOval(0, 1, 7, 7);
-		g.setColor(RaidType.COX.getColor());
-		g.fillOval(9, 1, 7, 7);
-		g.setColor(RaidType.TOA.getColor());
-		g.fillOval(4, 8, 7, 7);
-
-		g.dispose();
-		return image;
-	}
 }
