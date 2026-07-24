@@ -29,11 +29,12 @@ import javax.annotation.Nullable;
 import lombok.Value;
 
 /**
- * A single recruiting call parsed out of chat.
+ * A normalized bridge/demo recruitment domain record.
  */
 @Value
 class RecruitEntry
 {
+	/** Poster's RuneScape name. */
 	String sender;
 	/** Where the message came from: FC, CC, Guest CC, Public, or a Discord channel label. */
 	String source;
@@ -58,7 +59,7 @@ class RecruitEntry
 	/** Region hint such as "eu"/"usw", if any. */
 	@Nullable
 	String region;
-	/** Party/proof host name, if any. */
+	/** Party-hub passphrase for joiners, distinct from the poster RuneScape name ({@code sender}). */
 	@Nullable
 	String host;
 	/** Poster's highest raid KC for this raid (from OSRS hiscores), or 0 if unknown. */

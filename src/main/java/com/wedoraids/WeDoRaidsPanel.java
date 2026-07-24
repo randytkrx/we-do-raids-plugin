@@ -68,26 +68,21 @@ class WeDoRaidsPanel extends PluginPanel
 	private final Runnable onRefresh;
 
 	private boolean banned;
-	private boolean verified = true;
+	private boolean verified;
 	private boolean loggedIn = true;
 	private boolean restoring;
 	private BridgeStatus bridgeStatus = BridgeStatus.OFF;
 
-	WeDoRaidsPanel(WeDoRaidsConfig config, HostFormPanel.HostActions hostActions,
-		java.util.function.BiConsumer<String, String> saveFilter,
-		java.util.function.IntConsumer onHopWorld, java.util.function.IntSupplier currentWorld,
-		java.util.function.Supplier<String> coxLayout, java.util.function.Supplier<String> localIgn,
-		java.util.function.ToIntFunction<RaidType> userKc, Runnable requestKc, Runnable onIdleWarn,
-		java.util.function.BooleanSupplier autoHub, java.util.function.Consumer<String> onJoinHub,
-		Runnable onRefresh, java.util.function.IntFunction<String> worldBlockReason)
+	WeDoRaidsPanel(WeDoRaidsConfig config, HostDependencies hostDependencies,
+		PanelDependencies panelDependencies)
 	{
 		// Manage our own scrolling so the Olm header/filters stay fixed and only the list scrolls.
 		super(false);
 		this.config = config;
-		this.saveFilter = saveFilter;
-		this.onHopWorld = onHopWorld;
-		this.onJoinHub = onJoinHub;
-		this.onRefresh = onRefresh;
+		this.saveFilter = panelDependencies.saveFilter();
+		this.onHopWorld = panelDependencies.onHopWorld();
+		this.onJoinHub = panelDependencies.onJoinHub();
+		this.onRefresh = panelDependencies.onRefresh();
 
 		setLayout(new BorderLayout(0, 8));
 		setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -100,7 +95,7 @@ class WeDoRaidsPanel extends PluginPanel
 		top.add(Box.createVerticalStrut(6));
 
 		// Host form sits up top, above the filters, so hosting is the first action.
-		hostForm = new HostFormPanel(hostActions, currentWorld, coxLayout, localIgn, userKc, requestKc, onIdleWarn, autoHub, worldBlockReason);
+		hostForm = new HostFormPanel(hostDependencies);
 		hostForm.setAlignmentX(Component.LEFT_ALIGNMENT);
 		top.add(hostForm);
 		top.add(Box.createVerticalStrut(6));
@@ -363,6 +358,7 @@ class WeDoRaidsPanel extends PluginPanel
 	{
 		if (hostForm != null)
 		{
+			hostForm.exitLivePost();
 			hostForm.stopTimers();
 		}
 	}
@@ -378,26 +374,6 @@ class WeDoRaidsPanel extends PluginPanel
 		if (!loggedIn)
 		{
 			entries.clear();
-		}
-		rebuild();
-	}
-
-	/**
-	 * Adds an entry, replacing any earlier call from the same sender for the same raid.
-	 * Used by demo mode. Must be called on the EDT.
-	 */
-	void addEntry(RecruitEntry entry)
-	{
-		if (banned || !verified || !loggedIn)
-		{
-			return;
-		}
-		entries.removeIf(e -> e.getSender().equalsIgnoreCase(entry.getSender())
-			&& e.getRaidType() == entry.getRaidType());
-		entries.add(0, entry);
-		while (entries.size() > MAX_ENTRIES)
-		{
-			entries.remove(entries.size() - 1);
 		}
 		rebuild();
 	}
@@ -630,8 +606,8 @@ class WeDoRaidsPanel extends PluginPanel
 		}
 		// Prefer a clear "here/total" fill (e.g. 3/5) when we know both the party size and
 		// the open spots; otherwise fall back to showing the raw "+2" and duo/trio word.
-		final int total = teamTotal(entry.getPartySize());
-		final int open = firstInt(entry.getSpots());
+		final int total = RecruitDisplay.teamTotal(entry.getPartySize());
+		final int open = RecruitDisplay.firstInt(entry.getSpots());
 		if (total > 0 && open > 0)
 		{
 			appendDetail(detail, Math.max(0, total - open) + "/" + total);
@@ -659,7 +635,7 @@ class WeDoRaidsPanel extends PluginPanel
 		StringBuilder who = new StringBuilder("<html><b>" + escapeHtml(entry.getSender()) + "</b>");
 		who.append("<br>").append(escapeHtml(entry.getRaidType().getDisplayName())).append(" KC: ")
 			.append(entry.getKc() > 0 ? String.valueOf(entry.getKc()) : "unknown");
-		final String personTier = wdrTierNumber(entry.getRaidType(), entry.getKc());
+		final String personTier = RecruitDisplay.wdrTierNumber(entry.getRaidType(), entry.getKc());
 		if (personTier != null)
 		{
 			who.append("<br>Their WDR tier: ").append(personTier);
@@ -743,88 +719,6 @@ class WeDoRaidsPanel extends PluginPanel
 			sb.append("  ");
 		}
 		sb.append(value);
-	}
-
-	// WDR player tiers (T0-T5) per raid: the KC needed to reach each tier number, as
-	// confirmed with the WDR team. -1 = that tier's boundary isn't defined for the raid.
-	private static final int[] WDR_TIER_KC_COX = {0, 5, 25, 75, -1, 500};
-	private static final int[] WDR_TIER_KC_TOB = {0, 1, 10, -1, 100, -1};
-	private static final int[] WDR_TIER_KC_TOA = {0, 5, -1, -1, -1, -1};
-
-	/** The poster's WDR tier number ("T0".."T5") from their KC, or null if KC unknown. */
-	private static String wdrTierNumber(RaidType raid, int kc)
-	{
-		if (kc <= 0)
-		{
-			return null;
-		}
-		final int[] bounds;
-		switch (raid)
-		{
-			case COX:
-				bounds = WDR_TIER_KC_COX;
-				break;
-			case TOB:
-				bounds = WDR_TIER_KC_TOB;
-				break;
-			case TOA:
-				bounds = WDR_TIER_KC_TOA;
-				break;
-			default:
-				return null;
-		}
-		int tier = 0;
-		for (int i = 0; i < bounds.length; i++)
-		{
-			if (bounds[i] >= 0 && kc >= bounds[i])
-			{
-				tier = i;
-			}
-		}
-		return "T" + tier;
-	}
-
-	/** Total party size from a "duo"/"trio"/"solo"/"quad"/"N man" descriptor, or 0. */
-	private static int teamTotal(String partySize)
-	{
-		if (partySize == null)
-		{
-			return 0;
-		}
-		switch (partySize.toLowerCase().trim())
-		{
-			case "solo":
-				return 1;
-			case "duo":
-				return 2;
-			case "trio":
-				return 3;
-			case "quad":
-				return 4;
-			default:
-				return firstInt(partySize);
-		}
-	}
-
-	/** First integer embedded in a string ("+2" -> 2, "5 man" -> 5), or 0 if none. */
-	private static int firstInt(String s)
-	{
-		if (s == null)
-		{
-			return 0;
-		}
-		int i = 0;
-		final int n = s.length();
-		while (i < n && !Character.isDigit(s.charAt(i)))
-		{
-			i++;
-		}
-		int start = i;
-		while (i < n && Character.isDigit(s.charAt(i)))
-		{
-			i++;
-		}
-		return start < i ? Integer.parseInt(s.substring(start, i)) : 0;
 	}
 
 	private static String timeAgo(Instant timestamp)

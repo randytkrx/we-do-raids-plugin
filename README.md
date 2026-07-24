@@ -6,11 +6,11 @@ Find, join and host **We Do Raids** raid recruitment for **Theatre of Blood, Cha
 
 ## What it does
 
-- **Live recruitment feed** — the raid calls posted in the WDR Discord LFR channels appear in a side panel in real time (raid, tier, world, open spots / party size, roles, region, host).
+- **Live recruitment feed** — the raid calls posted in the WDR Discord LFR channels appear in a side panel, updated about every 10 seconds (raid, tier, world, open spots / party size, roles, region, host).
 - **One-click world hopping** — click a call's world to hop straight to it.
 - **Party-board highlights** — WDR teams currently recruiting are highlighted on the in-game Theatre of Blood and Tombs of Amascut party boards.
 - **Host your own call** — post a recruitment straight into the correct WDR channel (raid, tier, world, party size, spots, roles, party hub, description; CoX layout is auto-scouted), then tick roles as they fill or close it — the Discord post updates itself.
-- **KC / tier gating** — you only see and can host in the channels your raid KC qualifies for, matching the WDR Discord's own tier structure.
+- **KC / tier filtering** — panel and hosting-form filters are local; the bridge verifies eligibility and enforces the WDR ban list.
 - **Ban-list aware** — respects the WDR ban list.
 
 ## Getting started
@@ -23,9 +23,10 @@ Find, join and host **We Do Raids** raid recruitment for **Theatre of Blood, Cha
 
 This plugin connects to the We Do Raids bridge (`wdr.timecapsule.ink`), the community's own server.
 
-- **Nothing is sent until you enter your verification key.** With no key the plugin makes no external requests.
-- Once connected, it sends your **logged-in RuneScape name** and your **key** to the WDR server so it can verify you and enforce the WDR ban list. This is required for the plugin to function.
-- It does not send anything else, and it stores nothing beyond your key (kept in your RuneLite config, marked secret).
+- **No bridge traffic occurs until you enter a verification key.** Demo mode is fully local and makes no bridge requests.
+- When fetching the live feed, the plugin sends your **logged-in RuneScape name** (`viewer`) and **verification key** so the bridge can verify you and enforce the WDR ban list.
+- When you choose to post, update, or close a raid, the bridge also receives entered `raid`, `tier`, `world`, `size`, `spots`, `roles`, `scale`, `fc`, `layout`, `partyHub`, and `desc` values, plus `messageId` for an existing post and your in-game name (`ign`/`viewer`).
+- Your key is stored as a secret RuneLite configuration value. The plugin also stores your last raid and tier filter selections; it does not persist recruitment or host-post data.
 
 ## Affiliation
 
