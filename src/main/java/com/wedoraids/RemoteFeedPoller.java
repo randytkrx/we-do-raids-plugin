@@ -245,12 +245,12 @@ class RemoteFeedPoller
 	{
 		synchronized (requestLock)
 		{
-			if (activeCall == call && this.pollRequestGeneration == pollRequestGeneration)
+			if (activeCall != call || this.pollRequestGeneration != pollRequestGeneration)
 			{
-				activeCall = null;
-				return true;
+				return false;
 			}
-			return false;
+			activeCall = null;
+			return true;
 		}
 	}
 

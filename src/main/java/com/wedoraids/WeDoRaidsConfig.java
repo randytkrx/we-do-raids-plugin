@@ -112,7 +112,7 @@ public interface WeDoRaidsConfig extends Config
 	@ConfigItem(
 		keyName = "tierFilter",
 		name = "Only these tiers",
-		description = "Comma-separated WDR tiers to show (e.g. 'Learner, Standard, Advanced') — hide the ones you don't have the KC for. Leave empty to show all tiers",
+		description = "Comma-separated WDR tiers to show (e.g. 'Learner, Standard, Advanced'). Hide the ones you don't have the KC for. Leave empty to show all tiers",
 		section = filtersSection,
 		position = 6
 	)
@@ -169,7 +169,7 @@ public interface WeDoRaidsConfig extends Config
 	@ConfigItem(
 		keyName = "remoteFeedKey",
 		name = "Verification key",
-		description = "Your personal key from the We Do Raids Discord — type the verify command there to get it. "
+		description = "Your personal key from the We Do Raids Discord. Type the verify command there to get it. "
 			+ "The key is stored as a secret RuneLite configuration value. Adding it enables feed requests that send your "
 			+ "RuneScape name and key to the WDR server so you can see and host raids.",
 		section = remoteSection,
