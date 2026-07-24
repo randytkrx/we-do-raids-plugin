@@ -758,12 +758,7 @@ class HostFormPanel extends JPanel
 		{
 			return;
 		}
-		editingLive = false;
-		postButton.setText("Post to Discord");
-		cancelEditButton.setVisible(false);
-		raidCombo.setEnabled(true);
-		tierCombo.setEnabled(true);
-		setRaidTabsEnabled(true);
+		resetHostFormControls();
 		setStatus(" ", false);
 		form.setVisible(false);
 		livePanel.setVisible(true);
@@ -783,8 +778,7 @@ class HostFormPanel extends JPanel
 		}
 	}
 
-	/** After a successful edit-save, restore the live controls with the new field values. */
-	private void finishEdit(Map<String, String> fields)
+	private void resetHostFormControls()
 	{
 		editingLive = false;
 		postButton.setText("Post to Discord");
@@ -792,6 +786,12 @@ class HostFormPanel extends JPanel
 		raidCombo.setEnabled(true);
 		tierCombo.setEnabled(true);
 		setRaidTabsEnabled(true);
+	}
+
+	/** After a successful edit-save, restore the live controls with the new field values. */
+	private void finishEdit(Map<String, String> fields)
+	{
+		resetHostFormControls();
 		final String messageId = displayedLiveFields != null ? displayedLiveFields.get("messageId") : null;
 		lastSubmittedFields = new LinkedHashMap<>(fields);
 		form.setVisible(false);
@@ -880,12 +880,7 @@ class HostFormPanel extends JPanel
 		displayedLiveFields = null;
 		liveState.exitLivePost();
 		idlePromptActive = false;
-		editingLive = false;
-		postButton.setText("Post to Discord");
-		cancelEditButton.setVisible(false);
-		raidCombo.setEnabled(true);
-		tierCombo.setEnabled(true);
-		setRaidTabsEnabled(true);
+		resetHostFormControls();
 		idleTimer.stop();
 		promptTimer.stop();
 		livePanel.setVisible(false);

@@ -63,7 +63,7 @@ class WeDoRaidsPanel extends PluginPanel
 	/** Shown only while demo mode is on, so sample calls are never mistaken for live ones. */
 	private final JPanel demoBanner = buildDemoBanner();
 	private final BufferedImage logo = loadLogo();
-	private HostFormPanel hostForm;
+	private final HostFormPanel hostForm;
 	private final java.util.function.BiConsumer<String, String> saveFilter;
 	private final java.util.function.IntConsumer onHopWorld;
 	private final java.util.function.Consumer<String> onJoinHub;
@@ -239,7 +239,6 @@ class WeDoRaidsPanel extends PluginPanel
 		JPanel row = new JPanel(new java.awt.GridLayout(1, 2, 4, 0));
 		row.setOpaque(false);
 		row.setAlignmentX(Component.LEFT_ALIGNMENT);
-		row.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 		row.add(raidFilter);
 		row.add(tierFilter);
 		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, raidFilter.getPreferredSize().height));
@@ -328,47 +327,32 @@ class WeDoRaidsPanel extends PluginPanel
 	/** Re-filters the host form's tier dropdown once the player's KC has loaded. */
 	void refreshHostTiers()
 	{
-		if (hostForm != null)
-		{
-			hostForm.refreshTiersPublic();
-		}
+		hostForm.refreshTiersPublic();
 	}
 
 	/** Pushes the newest scouted CoX layout into the host form (on a re-scout). */
 	void refreshCoxLayout()
 	{
-		if (hostForm != null)
-		{
-			hostForm.refreshCoxLayout();
-		}
+		hostForm.refreshCoxLayout();
 	}
 
 	/** After a successful host, switch the form into live edit mode for that message. */
 	void enterHostLive(String messageId)
 	{
-		if (hostForm != null)
-		{
-			hostForm.enterLivePost(messageId);
-		}
+		hostForm.enterLivePost(messageId);
 	}
 
 	/** After closing a raid, restore the normal host form. */
 	void exitHostLive()
 	{
-		if (hostForm != null)
-		{
-			hostForm.exitLivePost();
-		}
+		hostForm.exitLivePost();
 	}
 
 	/** Plugin shutdown: stop the host form's timers so nothing fires into a dead panel. */
 	void shutdown()
 	{
-		if (hostForm != null)
-		{
-			hostForm.exitLivePost();
-			hostForm.stopTimers();
-		}
+		hostForm.exitLivePost();
+		hostForm.stopTimers();
 	}
 
 	/** Logged-out players get a log-in prompt instead of stale raids. */

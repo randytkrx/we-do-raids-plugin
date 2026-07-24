@@ -78,11 +78,6 @@ class RemoteFeedPoller
 		this.onVerified = onVerified;
 	}
 
-	void poll(String url, String key, String viewer)
-	{
-		poll(url, key, viewer, pollRequestGeneration(), 0);
-	}
-
 	void poll(String url, String key, String viewer, long pollRequestGeneration, long lifecycle)
 	{
 		final HttpUrl parsed = url == null ? null : HttpUrl.parse(url.trim());
